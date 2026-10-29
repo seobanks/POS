@@ -9,7 +9,7 @@ import type { NextConfig } from "next";
 const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:4001";
 
 const nextConfig: NextConfig = {
-  output: "standalone",
+  ...(process.env.VERCEL ? {} : { output: "standalone" }),
   // socket.io's endpoint is literally "/socket.io/" — the backend 404s on the
   // slash-less form, so Next must not redirect it.
   skipTrailingSlashRedirect: true,

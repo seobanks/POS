@@ -10,6 +10,7 @@ export function Logo({ className, size = 32 }: { className?: string; size?: numb
       height={size}
       className={cn("shrink-0 rounded-lg object-contain", className)}
       priority
+      unoptimized
     />
   );
 }

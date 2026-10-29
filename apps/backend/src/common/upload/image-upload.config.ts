@@ -1,19 +1,32 @@
 import { BadRequestException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, unlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { extname, join } from 'node:path';
 import type { Request } from 'express';
 import { diskStorage, type FileFilterCallback } from 'multer';
 
 // Persisted separately from the app's own image (a bind/named volume in
 // docker-compose.yml) so uploaded menu photos survive container rebuilds,
-// the same way the Postgres volume survives them — see README/ARCHITECTURE.
+// the same way the Postgres volume survives them â€” see README/ARCHITECTURE.
 export function uploadsDir(): string {
   const dir = process.env.UPLOADS_DIR ?? join(process.cwd(), 'uploads');
-  if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true });
+  try {
+    if (!existsSync(dir)) {
+      mkdirSync(dir, { recursive: true });
+    }
+    return dir;
+  } catch {
+    const fallback = join(tmpdir(), 'nodedr-uploads');
+    if (!existsSync(fallback)) {
+      try {
+        mkdirSync(fallback, { recursive: true });
+      } catch {
+        // ignore
+      }
+    }
+    return fallback;
   }
-  return dir;
 }
 
 const ALLOWED_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif']);
@@ -48,7 +61,7 @@ export const imageUploadOptions = {
 
 // Magic-byte signatures for the extensions ALLOWED_EXTENSIONS accepts.
 // `fileFilter` above only sees the client-declared filename/mimetype
-// (multer calls it before any bytes are read from a diskStorage upload) —
+// (multer calls it before any bytes are read from a diskStorage upload) â€”
 // neither is trustworthy. This checks the file actually on disk after
 // multer finishes writing it, so a renamed/mislabeled non-image (e.g. an
 // .html or .svg file saved as "photo.jpg" with a spoofed
@@ -93,7 +106,7 @@ export function assertValidImageSignature(filePath: string): void {
     try {
       unlinkSync(filePath);
     } catch {
-      // best-effort cleanup — the invalid file is at worst an orphaned,
+      // best-effort cleanup â€” the invalid file is at worst an orphaned,
       // non-executable, randomly-named blob under UPLOADS_DIR
     }
     throw new BadRequestException(
