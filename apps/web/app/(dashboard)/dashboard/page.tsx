@@ -187,14 +187,16 @@ export default function DashboardPage() {
             {data?.recentOrders.map((order) => {
               const isOnline = ONLINE_ORDER_TYPES.has(order.type);
               return (
-                <button
+                <div
                   key={order.id}
-                  type="button"
-                  onClick={() => setViewingOrderId(order.id)}
-                  className="flex items-center justify-between py-2.5 text-left text-sm transition hover:opacity-80"
-                  title="View order details"
+                  className="flex items-center justify-between py-2.5 text-sm"
                 >
-                  <div className="flex flex-col">
+                  <button
+                    type="button"
+                    onClick={() => setViewingOrderId(order.id)}
+                    className="flex flex-1 flex-col text-left transition hover:opacity-80"
+                    title="View order details"
+                  >
                     <span className="font-medium text-foreground">#{order.orderNumber}</span>
                     <Badge
                       variant="secondary"
@@ -205,7 +207,7 @@ export default function DashboardPage() {
                     >
                       {order.type.replace("_", " ")}
                     </Badge>
-                  </div>
+                  </button>
                   <div className="flex items-center gap-1">
                     <span className="font-medium tabular-nums text-foreground">
                       {formatCurrency(order.totalAmount)}
@@ -217,7 +219,7 @@ export default function DashboardPage() {
                       maxAmount={Number(order.totalAmount)}
                     />
                   </div>
-                </button>
+                </div>
               );
             })}
           </div>

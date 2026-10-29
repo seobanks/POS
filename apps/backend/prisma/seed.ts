@@ -43,22 +43,25 @@ async function main() {
   console.log('Creating demo restaurant + branch...');
   const restaurant = await prisma.restaurant.upsert({
     where: { id: 'demo-restaurant' },
-    update: {},
+    update: { name: 'Hanva Fine Dine', logoUrl: '/logo.png' },
     create: {
       id: 'demo-restaurant',
-      name: 'Nodedr Bistro (Demo)',
+      name: 'Hanva Fine Dine',
       currency: 'INR',
+      logoUrl: '/logo.png',
     },
   });
 
   const branch = await prisma.branch.upsert({
     where: { id: 'demo-branch' },
-    update: {},
+    update: { address: 'Hanva Fine Dine, Grand Avenue', phone: '+91 98765 43210', gstNumber: '27AABCH1234F1Z5' },
     create: {
       id: 'demo-branch',
       restaurantId: restaurant.id,
       name: 'Main Branch',
-      address: '123 Demo Street',
+      address: 'Hanva Fine Dine, Grand Avenue',
+      phone: '+91 98765 43210',
+      gstNumber: '27AABCH1234F1Z5',
     },
   });
 

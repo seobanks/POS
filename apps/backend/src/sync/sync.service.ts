@@ -367,9 +367,9 @@ export class SyncService implements OnModuleInit, OnModuleDestroy {
           );
           // The append-only VERI*FACTU chain can't be replaced; an empty one
           // only needs its truncate guard stepped around.
-          const chain = await tx.$queryRawUnsafe<{ n: bigint }[]>(
+          const chain = (await tx.$queryRawUnsafe(
             `SELECT count(*) AS n FROM verifactu_records`,
-          );
+          )) as { n: bigint }[];
           if (Number(chain[0].n) > 0) {
             throw new Error(
               'This PC already has VERI*FACTU invoice records, which cannot be replaced. Use "merge" instead.',

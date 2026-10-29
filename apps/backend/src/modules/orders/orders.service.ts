@@ -1848,7 +1848,9 @@ export class OrdersService {
           where: { orderId },
           include: { stockReturns: true },
         });
-        const byId = new Map(items.map((i) => [i.id, i]));
+        const byId = new Map<string, (typeof items)[number]>(
+          items.map((i) => [i.id, i]),
+        );
         const lines: { menuItemId: string; quantity: number }[] = [];
         for (const ret of dto.returnedItems) {
           const item = byId.get(ret.orderItemId);
@@ -2206,10 +2208,14 @@ export class OrdersService {
     branchId: string,
     orderItems: { id: string; menuItemId: string }[],
   ) {
-    const stationLookup = await tx.menuItem.findMany({
-      where: { id: { in: orderItems.map((i) => i.menuItemId) } },
-      select: { id: true, stationId: true },
-    });
+        // Parallelize station lookup and KOT count to eliminate sequential round trips
+    const [stationLookup, existingKotCount] = await Promise.all([
+      tx.menuItem.findMany({
+        where: { id: { in: orderItems.map((i) => i.menuItemId) } },
+        select: { id: true, stationId: true },
+      }),
+      tx.kot.count({ where: { orderId } }),
+    ]);
     const stationByMenuItem = new Map(
       stationLookup.map((m) => [m.id, m.stationId]),
     );
@@ -2222,10 +2228,7 @@ export class OrdersService {
       itemsByStation.set(stationId, bucket);
     }
 
-    // Start after any KOTs this order already has — addItems() can call this
-    // a second time for a later round, and ticket numbers must stay unique
-    // per order for kitchen staff to tell rounds apart.
-    let ticketSeq = (await tx.kot.count({ where: { orderId } })) + 1;
+    let ticketSeq = existingKotCount + 1;
     for (const [stationId, items] of itemsByStation) {
       const kot = await tx.kot.create({
         data: {

@@ -4,25 +4,25 @@ import { DocPage, DocSection } from "@/components/marketing/doc-page";
 import { downloadHref } from "@/lib/downloads";
 
 export const metadata: Metadata = {
-  title: "Documentation — Nodedr OrderRestro",
-  description: "API & MCP, accessibility, and India compliance docs for a self-hosted OrderRestro instance.",
+  title: "Documentation — Hanva Fine Dine",
+  description: "API & MCP, accessibility, and India compliance docs for a self-hosted Hanva Fine Dine instance.",
 };
 
 const docs = [
   {
     href: "/docs/api",
     title: "API & MCP",
-    description: "Connect an AI client via MCP, or use OrderRestro as a backend for your own website.",
+    description: "Connect an AI client via MCP, or use Hanva Fine Dine as a backend for your own website.",
   },
   {
     href: "/docs/accessibility",
     title: "Accessibility",
-    description: "How OrderRestro is built to work with keyboards, screen readers, and reduced motion.",
+    description: "How Hanva Fine Dine is built to work with keyboards, screen readers, and reduced motion.",
   },
   {
     href: "/docs/compliance-india",
     title: "India compliance",
-    description: "GST, receipts, and data-residency notes for running OrderRestro in India.",
+    description: "GST, receipts, and data-residency notes for running Hanva Fine Dine in India.",
   },
 ];
 
