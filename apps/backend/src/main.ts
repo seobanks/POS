@@ -11,7 +11,7 @@ import { uploadsDir } from './common/upload/image-upload.config';
 
 // Known example/placeholder secrets that appear verbatim in this repo's own
 // .env.example, docker-compose.yml, and the CasaOS/ZimaOS app-store
-// manifest (casaos/docker-compose.yml) â€” that manifest hardcodes a literal
+// manifest (casaos/docker-compose.yml) Ã¢â‚¬â€ that manifest hardcodes a literal
 // default value (CasaOS app-store installers pre-fill it and many
 // non-technical self-hosters click through without changing it) rather
 // than failing loudly the way `${JWT_SECRET:?...}` does in the main
@@ -30,7 +30,7 @@ const KNOWN_PLACEHOLDER_JWT_SECRETS = new Set([
 const MIN_JWT_SECRET_LENGTH = 32;
 
 // Where a self-generated secret is persisted so it survives container
-// restarts/recreates â€” a dedicated volume, deliberately NOT under
+// restarts/recreates Ã¢â‚¬â€ a dedicated volume, deliberately NOT under
 // UPLOADS_DIR (that directory is served as static files at /api/uploads/,
 // see below; a secret has no business living anywhere web-servable even
 // if today's static middleware happens to ignore dotfiles).
@@ -67,7 +67,7 @@ function resolveJwtSecret(): string {
       mkdirSync(dirname(JWT_SECRET_STATE_FILE), { recursive: true });
       writeFileSync(JWT_SECRET_STATE_FILE, generated, { mode: 0o600 });
       console.warn(
-        `JWT_SECRET was not set (or was a known placeholder) — generated a random one and saved it to ${JWT_SECRET_STATE_FILE}. ` +
+        `JWT_SECRET was not set (or was a known placeholder) â€” generated a random one and saved it to ${JWT_SECRET_STATE_FILE}. ` +
           'It will be reused on every restart, so existing sessions stay valid. Set JWT_SECRET explicitly instead if you manage this deployment by hand.',
       );
     } catch {
@@ -81,32 +81,32 @@ function resolveJwtSecret(): string {
   }
 }
 
-async function bootstrap() {
+let cachedApp: NestExpressApplication | null = null;
+
+export async function bootstrapApp(): Promise<NestExpressApplication> {
+  if (cachedApp) return cachedApp;
+
   process.env.JWT_SECRET = resolveJwtSecret();
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
   app.use(
     helmet({
-      // Uploaded images are fetched cross-origin-ish (via the frontend's
-      // same-origin /api proxy, but still through an <img> tag) â€” the
-      // default helmet CORP header blocks that in some browsers.
       crossOriginResourcePolicy: { policy: 'cross-origin' },
     }),
   );
   app.use(cookieParser());
-    const corsOrigin = process.env.CORS_ORIGIN;
+  const corsOrigin = process.env.CORS_ORIGIN;
   app.enableCors({
     origin: corsOrigin ? (corsOrigin.includes(',') ? corsOrigin.split(',').map((o) => o.trim()) : corsOrigin) : true,
     credentials: true,
   });
   app.setGlobalPrefix('api');
-  app.useStaticAssets(uploadsDir(), { prefix: '/api/uploads/' });
+  try {
+    app.useStaticAssets(uploadsDir(), { prefix: '/api/uploads/' });
+  } catch (err) {
+    console.warn('Static assets init skipped:', err);
+  }
 
-  // Full route/schema map â€” genuinely useful in dev, but an unauthenticated
-  // information-disclosure surface (every endpoint shape, DTO field, and
-  // permission key) if left reachable in production. Opt in explicitly via
-  // ENABLE_SWAGGER=true if a deployment wants it anyway (e.g. behind its
-  // own reverse-proxy auth).
   if (
     process.env.NODE_ENV !== 'production' ||
     process.env.ENABLE_SWAGGER === 'true'
@@ -121,10 +121,26 @@ async function bootstrap() {
     SwaggerModule.setup('api/docs', app, document);
   }
 
-  const port = process.env.PORT ?? 4000;
-  await app.listen(port);
-  console.log(
-    `Hanva Fine Dine API listening on :${port} (docs at /api/docs)`,
-  );
+  await app.init();
+  cachedApp = app;
+  return app;
 }
-void bootstrap();
+
+// Serverless handler export (used by Vercel Functions)
+export default async function handler(req: any, res: any) {
+  const app = await bootstrapApp();
+  const server = app.getHttpAdapter().getInstance();
+  return server(req, res);
+}
+
+// Standalone Server (Docker / Local Dev)
+if (!process.env.VERCEL) {
+  void (async () => {
+    const app = await bootstrapApp();
+    const port = process.env.PORT ?? 4000;
+    await app.listen(port);
+    console.log(
+      `Hanva Fine Dine API listening on :${port} (docs at /api/docs)`,
+    );
+  })();
+}
