@@ -11,6 +11,7 @@ import { useSettings } from "@/hooks/use-settings";
 import { BrandFooter } from "./brand-footer";
 import { BranchSwitcher } from "./branch-switcher";
 import { LanguageSwitcher } from "./language-switcher";
+import { LicensePill } from "./license-pill";
 import { Logo } from "./logo";
 import { MobileBottomNav } from "./mobile-bottom-nav";
 import { SidebarNav } from "./sidebar-nav";
@@ -106,7 +107,8 @@ export function AppShell({
             <Menu className="h-5 w-5" />
           </button>
           <div className="hidden lg:block" />
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-2">
+            <LicensePill />
             <LanguageSwitcher compact />
             <NotificationBell />
             <UserMenu user={user} />
