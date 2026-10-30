@@ -7,6 +7,7 @@ import {
   Clock,
   Copy,
   CreditCard,
+  Download,
   KeyRound,
   Layers,
   Loader2,
@@ -334,6 +335,47 @@ export default function SubscriptionSettingsPage() {
           )}
         </Card>
       )}
+
+      {/* Desktop Installer Download Card */}
+      <Card className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 p-6 border-primary/30 bg-gradient-to-r from-primary/[0.04] to-transparent">
+        <div className="flex items-start gap-4">
+          <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <Monitor className="size-6" />
+          </div>
+          <div className="space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="text-base font-bold text-foreground">
+                Hanva POS for Windows (Desktop Client)
+              </h3>
+              <Badge variant="outline" className="border-primary/40 text-primary text-[10px]">
+                v1.0.0 Stable
+              </Badge>
+              <Badge variant="secondary" className="text-[10px]">
+                Windows 10 / 11 (64-bit)
+              </Badge>
+            </div>
+            <p className="text-xs text-muted-foreground max-w-xl">
+              One-click offline installer for billing counters and cash registers. Bundles portable PostgreSQL, local thermal receipt printing, and auto-discovery for waiter tablets.
+            </p>
+            <div className="flex items-center gap-3 pt-1 text-[11px] text-muted-foreground">
+              <span>Size: ~310 MB</span>
+              <span>•</span>
+              <span>Auto-Configured Database</span>
+              <span>•</span>
+              <span>LAN Printing &amp; UPI QR</span>
+            </div>
+          </div>
+        </div>
+
+        <Button
+          size="lg"
+          className="gap-2 shrink-0 shadow-sm"
+          render={<a href="/api/v1/downloads/go/windows" download="HanvaPOS-Setup-v1.0.0.exe" />}
+        >
+          <Download className="size-4" />
+          Download Setup.exe
+        </Button>
+      </Card>
 
       {/* Subscription Plans Catalog */}
       <div className="space-y-4">

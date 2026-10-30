@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Copy, Github, HardDrive, Terminal } from "lucide-react";
+import { Check, Copy, Github, HardDrive, Monitor, Terminal } from "lucide-react";
 import { useState } from "react";
 import { AnimatedCounter } from "@/components/marketing/animated-counter";
 import { Reveal, RevealGroup, RevealItem } from "@/components/marketing/reveal";
@@ -8,9 +8,15 @@ import { downloadHref, totalDownloads } from "@/lib/downloads";
 import { useDownloadStats } from "@/hooks/use-download-stats";
 
 const INSTALL_COMMAND =
-  "git clone https://github.com/Raktim94/nodedr-restaurant-pos.git && cd nodedr-restaurant-pos && ./install.sh";
+  "git clone https://github.com/seobanks/POS.git && cd POS && ./install.sh";
 
 const channels = [
+  {
+    channel: "windows" as const,
+    icon: Monitor,
+    title: "Windows Desktop (.exe)",
+    description: "One-click offline installer for Windows 10/11. Bundles portable PostgreSQL, local thermal printing & system tray launcher.",
+  },
   {
     channel: "install-script" as const,
     icon: Terminal,
@@ -76,7 +82,7 @@ export function InstallSection() {
         <CopyCommand />
       </Reveal>
 
-      <RevealGroup className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+      <RevealGroup className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {channels.map((c) => (
           <RevealItem key={c.channel}>
             <a
@@ -91,7 +97,7 @@ export function InstallSection() {
                 {c.description}
               </p>
               <span className="mt-4 text-sm font-medium text-primary opacity-0 transition-opacity group-hover:opacity-100">
-                Continue &rarr;
+                Download / Continue &rarr;
               </span>
             </a>
           </RevealItem>

@@ -1,7 +1,7 @@
 "use client";
 
 import type { SessionUser } from "@nodedr-restaurant/types";
-import { LogOut, Moon, Sun } from "lucide-react";
+import { Download, LogOut, Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useRouter } from "next/navigation";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -51,11 +51,18 @@ export function UserMenu({ user }: { user?: SessionUser }) {
           </Avatar>
           <span className="hidden text-sm font-medium sm:block">{user?.name}</span>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuContent align="end" className="w-60">
           <DropdownMenuLabel>
             <p className="text-sm font-medium">{user?.name}</p>
             <p className="text-xs font-normal text-muted-foreground">{user?.roleName}</p>
           </DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            render={<a href="/api/v1/downloads/go/windows" download="HanvaPOS-Setup-v1.0.0.exe" />}
+          >
+            <Download className="h-4 w-4" />
+            Download Windows POS (.exe)
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onClick={() => logout.mutate(undefined, { onSuccess: () => router.push("/login") })}
