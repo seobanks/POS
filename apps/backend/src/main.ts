@@ -81,7 +81,13 @@ function resolveJwtSecret(): string {
   }
 }
 
-async function bootstrap() {
+let cachedApp: NestExpressApplication | null = null;
+
+export async function bootstrap(): Promise<NestExpressApplication> {
+  if (cachedApp) {
+    return cachedApp;
+  }
+
   process.env.JWT_SECRET = resolveJwtSecret();
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
@@ -126,5 +132,15 @@ async function bootstrap() {
   console.log(
     `Hanva Fine Dine API listening on :${port} (docs at /api/docs)`,
   );
+  cachedApp = app;
+  return app;
 }
+
+// Serverless handler export (used by Vercel Functions)
+export default async function handler(req: any, res: any) {
+  const app = await bootstrap();
+  const server = app.getHttpAdapter().getInstance();
+  return server(req, res);
+}
+
 void bootstrap();

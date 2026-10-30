@@ -4,6 +4,7 @@
   "description": "Hanva Fine Dine API",
   "author": "Raktim Ranjit <mail@raktimranjit.com> (https://github.com/Raktim94)",
   "private": true,
+  "main": "dist/main.js",
   "license": "AGPL-3.0-only",
   "scripts": {
     "build": "nest build",
