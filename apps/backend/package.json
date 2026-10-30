@@ -8,7 +8,6 @@
   "license": "AGPL-3.0-only",
   "scripts": {
     "build": "nest build",
-    "postbuild": "node scripts/sync-modules.js",
     "postinstall": "prisma generate",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",

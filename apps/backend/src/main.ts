@@ -144,7 +144,7 @@ function getBackendRequire(): NodeRequire {
   return createRequire(resolve(process.cwd(), 'package.json'));
 }
 
-export async function bootstrap(): Promise<NestExpressApplication> {
+async function bootstrap(): Promise<NestExpressApplication> {
   if (cachedApp) {
     return cachedApp;
   }

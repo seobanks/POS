@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, symlinkSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { Module } from 'node:module';
 
@@ -50,23 +50,6 @@ function preInitResolution() {
 
   try {
     (Module as any)._initPaths();
-  } catch {
-    // Ignore
-  }
-
-  // Attempt to create symlinks in /var/task if writable (e.g. build step or writable container)
-  try {
-    const backendNm = '/var/task/apps/backend/node_modules';
-    if (existsSync(backendNm)) {
-      const srcNm = '/var/task/src/node_modules';
-      if (!existsSync(srcNm)) {
-        try {
-          symlinkSync(backendNm, srcNm, 'junction');
-        } catch {
-          // Read-only filesystem is expected in Lambda execution
-        }
-      }
-    }
   } catch {
     // Ignore
   }
