@@ -2,6 +2,7 @@ import { tmpdir } from 'node:os';
 import { randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
+import { createRequire, Module } from 'node:module';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 
 function uploadsDir(): string {
@@ -25,45 +26,35 @@ function uploadsDir(): string {
 }
 
 // Self-healing module resolution for Vercel Serverless / Monorepo containers
-function registerCandidateModulePaths() {
+function setupModuleResolution() {
   const candidates = [
+    '/var/task/apps/backend/node_modules',
+    '/var/task/node_modules',
+    resolve(process.cwd(), 'apps/backend/node_modules'),
     resolve(process.cwd(), 'node_modules'),
-    resolve(process.cwd(), '..', 'node_modules'),
-    resolve(process.cwd(), '..', '..', 'node_modules'),
     resolve(__dirname, 'node_modules'),
     resolve(__dirname, '..', 'node_modules'),
     resolve(__dirname, '..', '..', 'node_modules'),
-    resolve('/var/task/node_modules'),
-    resolve('/var/task/apps/backend/node_modules'),
-    resolve('/var/task/../../node_modules'),
   ];
-  for (const c of candidates) {
-    if (existsSync(c) && !module.paths.includes(c)) {
+
+  const foundDirs = candidates.filter((c) => existsSync(c));
+  for (const c of foundDirs) {
+    if (!module.paths.includes(c)) {
       module.paths.unshift(c);
     }
   }
 
-  // Search /var/task for nested pnpm node_modules if present
-  try {
-    const varTask = '/var/task';
-    if (existsSync(varTask)) {
-      const pnpmStore = join(varTask, 'node_modules', '.pnpm');
-      if (existsSync(pnpmStore)) {
-        const pnpmEntries = readdirSync(pnpmStore);
-        for (const entry of pnpmEntries) {
-          if (entry.includes('@nestjs+core')) {
-            const nested = join(pnpmStore, entry, 'node_modules');
-            if (existsSync(nested) && !module.paths.includes(nested)) {
-              module.paths.unshift(nested);
-            }
-          }
-        }
-      }
+  if (foundDirs.length > 0) {
+    process.env.NODE_PATH = `${foundDirs.join(':')}:${process.env.NODE_PATH || ''}`;
+    try {
+      (Module as any)._initPaths();
+    } catch {
+      // Ignore
     }
-  } catch {
-    // Ignore
   }
 }
+
+setupModuleResolution();
 
 // Known example/placeholder secrets that appear verbatim in this repo's own
 // .env.example, docker-compose.yml, and the CasaOS/ZimaOS app-store
@@ -133,22 +124,40 @@ function resolveJwtSecret(): string {
 let cachedApp: NestExpressApplication | null = null;
 let bootstrapError: any = null;
 
+function getBackendRequire(): NodeRequire {
+  const candidates = [
+    '/var/task/apps/backend/package.json',
+    resolve(process.cwd(), 'apps/backend/package.json'),
+    resolve(__dirname, '..', 'package.json'),
+  ];
+  for (const c of candidates) {
+    if (existsSync(c)) {
+      return createRequire(c);
+    }
+  }
+  return createRequire(resolve(process.cwd(), 'package.json'));
+}
+
 export async function bootstrap(): Promise<NestExpressApplication> {
   if (cachedApp) {
     return cachedApp;
   }
 
-  registerCandidateModulePaths();
+  setupModuleResolution();
 
-  // Dynamic imports so top-level evaluation does not crash before diagnostic handlers can run
-  const { NestFactory } = await import('@nestjs/core');
+  const reqHelper = getBackendRequire();
+
+  // Load core modules via backendRequire so resolution starts at apps/backend/node_modules
+  const { NestFactory } = reqHelper('@nestjs/core');
+  const { DocumentBuilder, SwaggerModule } = reqHelper('@nestjs/swagger');
+  const cookieParser = reqHelper('cookie-parser');
+  const helmet = reqHelper('helmet');
+
+  // Load AppModule
   const { AppModule } = await import('./app.module.js');
-  const { DocumentBuilder, SwaggerModule } = await import('@nestjs/swagger');
-  const cookieParser = (await import('cookie-parser')).default;
-  const helmet = (await import('helmet')).default;
 
   process.env.JWT_SECRET = resolveJwtSecret();
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const app: NestExpressApplication = await NestFactory.create(AppModule);
 
   app.use(
     helmet({
@@ -239,6 +248,8 @@ function buildDebugReport(err?: any) {
       cwd: process.cwd(),
       dirname: __dirname,
       modulePaths: module.paths,
+      globalPaths: (Module as any).globalPaths,
+      appLoaded: Boolean(cachedApp),
     },
     env: safeEnv,
     filesystem: {
