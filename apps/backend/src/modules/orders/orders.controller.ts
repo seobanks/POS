@@ -450,6 +450,8 @@ export class OrdersController {
         taxMode: order.branch.taxMode,
         taxLabel: order.branch.taxLabel,
         taxId: order.branch.taxId,
+        upiVpa: order.branch.restaurant.upiVpa,
+        upiPayeeName: order.branch.restaurant.upiPayeeName,
       },
       order: {
         ...toEscposOrder(order, overrides),
@@ -630,6 +632,8 @@ export class OrdersController {
         taxMode: order.branch.taxMode,
         taxLabel: order.branch.taxLabel,
         taxId: order.branch.taxId,
+        upiVpa: order.branch.restaurant.upiVpa,
+        upiPayeeName: order.branch.restaurant.upiPayeeName,
       },
       order: {
         ...toEscposOrder(order, overrides),

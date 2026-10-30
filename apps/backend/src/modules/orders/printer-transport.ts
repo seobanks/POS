@@ -1,7 +1,8 @@
 // Picks the transport for a branch's thermal printer: USB attached to the
-// machine running the backend, or a network printer over raw TCP.
+// machine running the backend, network printer over raw TCP, or Windows spooler.
 import { sendViaNetwork } from './escpos-network';
 import { PrinterNotFoundError, sendRaw } from './escpos-usb';
+import { printToWindowsSpooler } from './escpos-windows';
 
 export interface BranchPrinterTarget {
   printerConnection: string;
@@ -23,6 +24,18 @@ export async function sendToBranchPrinter(
       { host: branch.printerHost, port: branch.printerPort },
       buffer,
     );
+  }
+  if (
+    branch.printerConnection === 'WINDOWS' ||
+    branch.printerConnection === 'SPOOLER'
+  ) {
+    const res = await printToWindowsSpooler(branch.printerHost, buffer);
+    if (!res.success) {
+      throw new PrinterNotFoundError(
+        res.error || 'Failed to print via Windows Print Spooler',
+      );
+    }
+    return;
   }
   return sendRaw(buffer);
 }

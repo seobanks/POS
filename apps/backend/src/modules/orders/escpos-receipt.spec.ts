@@ -6,6 +6,7 @@ import {
   buildReceiptEscPos,
   buildReceiptEscPosJob,
   buildTestSlip,
+  buildUpiUri,
   resolveProfile,
 } from './escpos-receipt';
 
@@ -372,6 +373,147 @@ describe('VERI*FACTU QR on the receipt', () => {
       ...fmt,
     });
     expect(buffer.includes(Buffer.from([0x1d, 0x28, 0x6b]))).toBe(false);
+  });
+});
+
+describe('dynamic UPI QR on the receipt', () => {
+  it('buildUpiUri formats NPCI deep link with %20 encoded spaces', () => {
+    const uri = buildUpiUri({
+      vpa: 'test@okaxis',
+      name: 'Cafe Delight & Bakery',
+      amount: 499,
+      note: 'Order #999',
+    });
+    expect(uri).toBe(
+      'upi://pay?pa=test@okaxis&pn=Cafe%20Delight%20%26%20Bakery&am=499.00&cu=INR&tn=Order%20%23999',
+    );
+  });
+
+  const upiOrder = {
+    ...order,
+    orderNumber: '20261030-0099',
+    totalAmount: 150.5,
+    upi: {
+      vpa: 'merchant@okhdfcbank',
+      name: 'Hanva Fine Dine',
+      amount: 150.5,
+      note: 'Table 7 Bill',
+    },
+  };
+
+  it('prints a native centered QR code and scan caption when order.upi is configured', () => {
+    const job = buildReceiptEscPosJob({
+      restaurantName: 'Hanva Fine Dine',
+      currency: 'INR',
+      branch: {
+        ...branch,
+        taxRegime: 'INDIA_GST',
+        taxMode: 'INCLUSIVE',
+      },
+      order: upiOrder,
+      profile: resolveProfile({ paperWidthMm: 80 }),
+      ...fmt,
+    });
+
+    const { buffer } = job;
+    const text = buffer.toString('latin1');
+
+    // Emits ESC/POS QR command (GS ( k)
+    expect(buffer.includes(Buffer.from([0x1d, 0x28, 0x6b]))).toBe(true);
+
+    // Deep link string has correct NPCI format with %20 encoded spaces
+    const expectedUri =
+      'upi://pay?pa=merchant@okhdfcbank&pn=Hanva%20Fine%20Dine&am=150.50&cu=INR&tn=Table%207%20Bill';
+    expect(buffer.includes(Buffer.from(expectedUri))).toBe(true);
+
+    // Bold centered caption
+    expect(text).toContain('Scan with GPay / PhonePe / Paytm');
+  });
+
+  it('automatically generates UPI QR when branch.upiVpa is configured on provisional bill', () => {
+    const provisionalOrder = {
+      ...order,
+      orderNumber: 'INV-4412',
+      totalAmount: 250,
+      isProvisional: true,
+      upi: undefined,
+    };
+
+    const job = buildReceiptEscPosJob({
+      restaurantName: 'Hanva Restaurant',
+      currency: 'INR',
+      branch: {
+        ...branch,
+        upiVpa: 'branchpos@upi',
+        upiPayeeName: 'Hanva Branch',
+      },
+      order: provisionalOrder,
+      profile: resolveProfile({ paperWidthMm: 80 }),
+      ...fmt,
+    });
+
+    const { buffer } = job;
+    const text = buffer.toString('latin1');
+    expect(buffer.includes(Buffer.from([0x1d, 0x28, 0x6b]))).toBe(true);
+    const expectedUri =
+      'upi://pay?pa=branchpos@upi&pn=Hanva%20Branch&am=250.00&cu=INR&tn=INV-4412';
+    expect(buffer.includes(Buffer.from(expectedUri))).toBe(true);
+    expect(text).toContain('Scan with GPay / PhonePe / Paytm');
+  });
+
+  it('automatically generates UPI QR when order has balance due', () => {
+    const dueOrder = {
+      ...order,
+      orderNumber: 'INV-5500',
+      totalAmount: 500,
+      amountPaid: 200,
+      balanceDue: 300,
+      upi: undefined,
+    };
+
+    const job = buildReceiptEscPosJob({
+      restaurantName: 'Hanva Restaurant',
+      currency: 'INR',
+      branch: {
+        ...branch,
+        upiVpa: 'branchpos@upi',
+      },
+      order: dueOrder,
+      profile: resolveProfile({ paperWidthMm: 80 }),
+      ...fmt,
+    });
+
+    const { buffer } = job;
+    expect(buffer.includes(Buffer.from([0x1d, 0x28, 0x6b]))).toBe(true);
+    // Amount should be the balance due (300.00)
+    const expectedUri =
+      'upi://pay?pa=branchpos@upi&pn=Hanva%20Restaurant&am=300.00&cu=INR&tn=INV-5500';
+    expect(buffer.includes(Buffer.from(expectedUri))).toBe(true);
+  });
+
+  it('omits UPI QR when order is fully paid and no explicit order.upi is given', () => {
+    const paidOrder = {
+      ...order,
+      isProvisional: false,
+      amountPaid: 31.4,
+      balanceDue: 0,
+      upi: undefined,
+    };
+
+    const job = buildReceiptEscPosJob({
+      restaurantName: 'Hanva Restaurant',
+      currency: 'INR',
+      branch: {
+        ...branch,
+        upiVpa: 'branchpos@upi',
+      },
+      order: paidOrder,
+      profile: resolveProfile({ paperWidthMm: 80 }),
+      ...fmt,
+    });
+
+    expect(job.buffer.includes(Buffer.from([0x1d, 0x28, 0x6b]))).toBe(false);
+    expect(job.buffer.toString('latin1')).not.toContain('Scan with GPay');
   });
 });
 

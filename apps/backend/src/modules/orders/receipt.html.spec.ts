@@ -69,3 +69,62 @@ describe('receipt HTML with VERI*FACTU', () => {
     ).not.toContain('QR tributario');
   });
 });
+
+
+describe('receipt HTML with dynamic UPI QR', () => {
+  it('renders inline 35mm QR and caption when order.upi is provided', () => {
+    const html = buildReceiptHtml({
+      ...base,
+      restaurantName: 'Hanva Cafe',
+      currency: 'INR',
+      order: {
+        ...base.order,
+        orderNumber: 'ORD-77',
+        upi: {
+          vpa: 'cafe@okhdfcbank',
+          name: 'Hanva Cafe',
+          amount: 250,
+          note: 'ORD-77',
+        },
+      },
+    });
+    expect(html).toContain('Scan with GPay / PhonePe / Paytm');
+    expect(html).toContain('<svg');
+    expect(html).toContain('width="35mm"');
+  });
+
+  it('renders UPI QR when branch.upiVpa is configured on provisional bill', () => {
+    const html = buildReceiptHtml({
+      ...base,
+      currency: 'INR',
+      branch: {
+        ...base.branch,
+        upiVpa: 'branch@upi',
+        upiPayeeName: 'Main Branch',
+      },
+      order: {
+        ...base.order,
+        isProvisional: true,
+      },
+    });
+    expect(html).toContain('Scan with GPay / PhonePe / Paytm');
+    expect(html).toContain('<svg');
+  });
+
+  it('omits UPI QR on a paid bill without explicit order.upi', () => {
+    const html = buildReceiptHtml({
+      ...base,
+      branch: {
+        ...base.branch,
+        upiVpa: 'branch@upi',
+      },
+      order: {
+        ...base.order,
+        isProvisional: false,
+        amountPaid: 11,
+        balanceDue: 0,
+      },
+    });
+    expect(html).not.toContain('Scan with GPay / PhonePe / Paytm');
+  });
+});

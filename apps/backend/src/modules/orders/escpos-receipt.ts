@@ -56,9 +56,42 @@ export interface ReceiptVerifactu {
   invoiceNumber: string;
 }
 
+export interface ReceiptUpi {
+  vpa: string;
+  name?: string | null;
+  amount: number;
+  note?: string | null;
+}
+
+/**
+ * Builds an NPCI standard UPI deep link for dynamic payment QR codes:
+ * upi://pay?pa=<vpa>&pn=<name>&am=<amount>&cu=INR&tn=<note>
+ * Spaces in payee name and transaction note are %20 encoded per the UPI linking specification.
+ */
+export function buildUpiUri(opts: {
+  vpa: string;
+  name?: string | null;
+  amount: number;
+  note?: string | null;
+}): string {
+  const parts: string[] = [`pa=${opts.vpa}`];
+  if (opts.name) {
+    parts.push(`pn=${encodeURIComponent(opts.name.trim().slice(0, 60))}`);
+  }
+  const amt = Number(opts.amount || 0).toFixed(2);
+  parts.push(`am=${amt}`);
+  parts.push('cu=INR');
+  if (opts.note) {
+    parts.push(`tn=${encodeURIComponent(opts.note.trim().slice(0, 60))}`);
+  }
+  return `upi://pay?${parts.join('&')}`;
+}
+
 export interface EscposReceiptOrder {
   /** Spain VERI*FACTU invoice QR, printed on a paid receipt. */
   verifactu?: ReceiptVerifactu | null;
+  /** Dynamic UPI QR config for payments. */
+  upi?: ReceiptUpi | null;
   orderNumber: string;
   type: string;
   createdAt: Date;
@@ -129,6 +162,8 @@ export function buildReceiptEscPosJob({
     taxMode: TaxMode;
     taxLabel: string | null;
     taxId: string | null;
+    upiVpa?: string | null;
+    upiPayeeName?: string | null;
   };
   currency: string;
   order: EscposReceiptOrder;
@@ -233,6 +268,39 @@ export function buildReceiptEscPosJob({
     w.rule();
     w.row('Amount paid', money(order.amountPaid));
     w.row('Balance due', money(order.balanceDue), { bold: true });
+  }
+
+  // Dynamic UPI QR code (India payments):
+  // When an order has upi (or when branch has upiVpa configured and the bill is provisional or has balance due)
+  const upiConfig =
+    order.upi ??
+    (branch.upiVpa &&
+    (order.isProvisional ||
+      (order.balanceDue !== undefined && order.balanceDue > 0))
+      ? {
+          vpa: branch.upiVpa,
+          name: branch.upiPayeeName || restaurantName,
+          amount:
+            order.balanceDue !== undefined && order.balanceDue > 0
+              ? order.balanceDue
+              : order.totalAmount,
+          note: order.orderNumber,
+        }
+      : null);
+
+  if (upiConfig && upiConfig.vpa && upiConfig.amount > 0) {
+    const upiUri = buildUpiUri({
+      vpa: upiConfig.vpa,
+      name: upiConfig.name ?? branch.upiPayeeName ?? restaurantName,
+      amount: upiConfig.amount,
+      note: upiConfig.note ?? order.orderNumber,
+    });
+    w.rule();
+    w.qr(upiUri);
+    w.text('Scan with GPay / PhonePe / Paytm', {
+      align: 'center',
+      bold: true,
+    });
   }
 
   if (order.verifactu && !order.isProvisional) {

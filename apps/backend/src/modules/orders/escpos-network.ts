@@ -16,6 +16,88 @@ function describe(target: NetworkPrinterTarget): string {
   return `${target.host}:${target.port}`;
 }
 
+/**
+ * Direct raw TCP socket printing for network thermal printers (port 9100).
+ * Connects to printer at host:port, sends the data buffer, waits for completion,
+ * and handles timeout, socket error, write, and clean socket destruction.
+ */
+export function printOverTcp(
+  host: string,
+  port: number,
+  data: Buffer,
+  timeoutMs?: number,
+): Promise<{ success: boolean; error?: string }>;
+export function printOverTcp(
+  host: string,
+  data: Buffer,
+  timeoutMs?: number,
+): Promise<{ success: boolean; error?: string }>;
+export function printOverTcp(
+  host: string,
+  portOrData: number | Buffer = 9100,
+  dataOrTimeout?: Buffer | number,
+  timeoutMs: number = 5000,
+): Promise<{ success: boolean; error?: string }> {
+  let port = 9100;
+  let data: Buffer;
+  let timeout = timeoutMs;
+
+  if (Buffer.isBuffer(portOrData)) {
+    data = portOrData;
+    if (typeof dataOrTimeout === 'number') {
+      timeout = dataOrTimeout;
+    }
+  } else {
+    port = portOrData;
+    data = dataOrTimeout as Buffer;
+    timeout = timeoutMs;
+  }
+
+  return new Promise((resolve) => {
+    const socket = new net.Socket();
+    let settled = false;
+
+    const cleanup = (success: boolean, error?: string) => {
+      if (settled) return;
+      settled = true;
+      socket.removeAllListeners();
+      try {
+        socket.destroy();
+      } catch {
+        // ignore errors on destroy
+      }
+      resolve(success ? { success: true } : { success: false, error });
+    };
+
+    socket.setTimeout(timeout, () => {
+      cleanup(false, `Timed out printing to ${host}:${port} after ${timeout}ms`);
+    });
+
+    socket.once('error', (err: NodeJS.ErrnoException) => {
+      const why =
+        err.code === 'ECONNREFUSED'
+          ? `Connection refused at ${host}:${port} (is raw/9100 printing enabled?)`
+          : err.code === 'EHOSTUNREACH' || err.code === 'ENETUNREACH'
+            ? `Host unreachable: ${host}:${port}`
+            : err.code === 'ENOTFOUND'
+              ? `Host name not found: ${host}`
+              : err.code === 'ETIMEDOUT'
+                ? `Connection timed out: ${host}:${port}`
+                : err.message || 'Socket error';
+      cleanup(false, why);
+    });
+
+    socket.connect(port, host, () => {
+      socket.end(data, () => {
+        // Data has been sent and flushed to the network stream
+      });
+      socket.once('close', () => {
+        cleanup(true);
+      });
+    });
+  });
+}
+
 export function sendViaNetwork(
   target: NetworkPrinterTarget,
   buffer: Buffer,

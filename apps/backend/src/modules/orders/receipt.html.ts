@@ -14,7 +14,7 @@
 // note) and are never recomputed here.
 
 import { qrSvg } from '../verifactu/verifactu.qr';
-import type { ReceiptVerifactu } from './escpos-receipt';
+import { buildUpiUri, type ReceiptVerifactu, type ReceiptUpi } from './escpos-receipt';
 import {
   resolveTaxIdLabel,
   resolveTaxLabel,
@@ -43,6 +43,7 @@ function esc(value: string | number | null | undefined): string {
 interface ReceiptOrder {
   /** Spain VERI*FACTU invoice QR, printed on a paid receipt. */
   verifactu?: ReceiptVerifactu | null;
+  upi?: ReceiptUpi | null;
   orderNumber: string;
   type: string;
   createdAt: Date;
@@ -94,6 +95,8 @@ export function buildReceiptHtml({
     taxMode: TaxMode;
     taxLabel: string | null;
     taxId: string | null;
+    upiVpa?: string | null;
+    upiPayeeName?: string | null;
   };
   currency: string;
   order: ReceiptOrder;
@@ -201,6 +204,31 @@ export function buildReceiptHtml({
         </table>`
       : '';
 
+  const upiConfig =
+    order.upi ??
+    (branch.upiVpa &&
+    (order.isProvisional ||
+      (order.balanceDue !== undefined && order.balanceDue > 0))
+      ? {
+          vpa: branch.upiVpa,
+          name: branch.upiPayeeName || restaurantName,
+          amount:
+            order.balanceDue !== undefined && order.balanceDue > 0
+              ? order.balanceDue
+              : order.totalAmount,
+          note: order.orderNumber,
+        }
+      : null);
+  const upiUri =
+    upiConfig && upiConfig.vpa && upiConfig.amount > 0
+      ? buildUpiUri({
+          vpa: upiConfig.vpa,
+          name: upiConfig.name ?? branch.upiPayeeName ?? restaurantName,
+          amount: upiConfig.amount,
+          note: upiConfig.note ?? order.orderNumber,
+        })
+      : null;
+
   return `<!doctype html>
 <html>
 <head>
@@ -269,6 +297,11 @@ export function buildReceiptHtml({
         : ''
     }
     ${settlementRows}
+    ${
+      upiUri
+        ? `<hr class="rule"><div class="center" style="margin: 6px 0;"><div style="display: flex; justify-content: center;">${qrSvg(upiUri, '35mm')}</div><div style="font-size: 11px; font-weight: 700; margin-top: 4px;">Scan with GPay / PhonePe / Paytm</div></div>`
+        : ''
+    }
     ${
       order.verifactu && !order.isProvisional
         ? `<hr class="rule"><div class="vf"><strong>Factura simplificada ${esc(order.verifactu.invoiceNumber)}</strong><div>${esc(order.verifactu.heading)}</div>${qrSvg(order.verifactu.url, '35mm')}<div>${esc(order.verifactu.legend)}</div><strong>${esc(order.verifactu.short)}</strong></div>`
