@@ -31,6 +31,7 @@
   ],
   "scripts": {
     "dev": "turbo run dev",
+    "postinstall": "pnpm --filter @nodedr-restaurant/types build && pnpm --filter @nodedr-restaurant/backend exec prisma generate",
     "build": "turbo run build",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
