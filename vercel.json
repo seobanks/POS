@@ -4,7 +4,7 @@
     "backend": {
       "root": "apps/backend",
       "framework": "nestjs",
-      "buildCommand": "pnpm --filter @nodedr-restaurant/types build && prisma generate && nest build"
+      "buildCommand": "pnpm --filter @nodedr-restaurant/types build && prisma generate && nest build && node scripts/sync-modules.js"
     },
     "web": {
       "root": "apps/web",

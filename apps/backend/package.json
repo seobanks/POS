@@ -8,6 +8,7 @@
   "license": "AGPL-3.0-only",
   "scripts": {
     "build": "nest build",
+    "postbuild": "node scripts/sync-modules.js",
     "postinstall": "prisma generate",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
@@ -62,6 +63,7 @@
     "rxjs": "^7.8.2",
     "socket.io": "^4.8.3",
     "usb": "2.18.0",
+    "tslib": "^2.8.1",
     "zod": "^4.6.6"
   },
   "devDependencies": {

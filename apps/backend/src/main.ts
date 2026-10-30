@@ -1,9 +1,15 @@
+import './pre-init.js';
 import { tmpdir } from 'node:os';
 import { randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { createRequire, Module } from 'node:module';
+import { NestFactory } from '@nestjs/core';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import cookieParser from 'cookie-parser';
+import helmet from 'helmet';
 import type { NestExpressApplication } from '@nestjs/platform-express';
+import { AppModule } from './app.module.js';
 
 function uploadsDir(): string {
   const dir = process.env.UPLOADS_DIR ?? join(process.cwd(), 'uploads');
@@ -142,19 +148,6 @@ export async function bootstrap(): Promise<NestExpressApplication> {
   if (cachedApp) {
     return cachedApp;
   }
-
-  setupModuleResolution();
-
-  const reqHelper = getBackendRequire();
-
-  // Load core modules via backendRequire so resolution starts at apps/backend/node_modules
-  const { NestFactory } = reqHelper('@nestjs/core');
-  const { DocumentBuilder, SwaggerModule } = reqHelper('@nestjs/swagger');
-  const cookieParser = reqHelper('cookie-parser');
-  const helmet = reqHelper('helmet');
-
-  // Load AppModule
-  const { AppModule } = await import('./app.module.js');
 
   process.env.JWT_SECRET = resolveJwtSecret();
   const app: NestExpressApplication = await NestFactory.create(AppModule);
