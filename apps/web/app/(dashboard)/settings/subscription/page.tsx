@@ -24,13 +24,11 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
   Dialog,
-  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -189,13 +187,15 @@ export default function SubscriptionSettingsPage() {
               </div>
             </div>
 
+            <Button
+              className="gap-2"
+              onClick={() => setIsActivateDialogOpen(true)}
+            >
+              <KeyRound className="size-4" />
+              Activate License Key
+            </Button>
+
             <Dialog open={isActivateDialogOpen} onOpenChange={setIsActivateDialogOpen}>
-              <DialogTrigger asChild>
-                <Button className="gap-2">
-                  <KeyRound className="size-4" />
-                  Activate License Key
-                </Button>
-              </DialogTrigger>
               <DialogContent className="sm:max-w-md">
                 <form onSubmit={handleActivateLicense}>
                   <DialogHeader>
@@ -233,11 +233,13 @@ export default function SubscriptionSettingsPage() {
                   </div>
 
                   <DialogFooter className="gap-2 sm:gap-0">
-                    <DialogClose asChild>
-                      <Button type="button" variant="outline">
-                        Cancel
-                      </Button>
-                    </DialogClose>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setIsActivateDialogOpen(false)}
+                    >
+                      Cancel
+                    </Button>
                     <Button type="submit" disabled={activateMutation.isPending}>
                       {activateMutation.isPending ? "Validating Key..." : "Activate Now"}
                     </Button>
@@ -485,11 +487,16 @@ export default function SubscriptionSettingsPage() {
               </div>
 
               <DialogFooter className="gap-2 sm:gap-0">
-                <DialogClose asChild>
-                  <Button type="button" variant="outline">
-                    Cancel
-                  </Button>
-                </DialogClose>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setSelectedPlanForCheckout(null);
+                    setCheckoutOrder(null);
+                  }}
+                >
+                  Cancel
+                </Button>
                 <Button
                   onClick={handleCompletePaymentSimulation}
                   disabled={isProcessingPayment}
