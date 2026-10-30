@@ -1,10 +1,14 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
+  Headers,
   HttpCode,
   HttpStatus,
   Post,
+  Req,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import type {
@@ -12,13 +16,24 @@ import type {
   LicensePayload,
   LicenseStatusResponse,
   SubscriptionPlan,
+  SubscriptionPlanType,
 } from '@nodedr-restaurant/types';
+import { RazorpayService } from './razorpay.service';
 import { SubscriptionsService } from './subscriptions.service';
+
+export interface CreateOrderDto {
+  plan: SubscriptionPlanType;
+  restaurantId?: string;
+  restaurantName?: string;
+}
 
 @ApiTags('subscriptions')
 @Controller('v1/subscriptions')
 export class SubscriptionsController {
-  constructor(private readonly subscriptionsService: SubscriptionsService) {}
+  constructor(
+    private readonly subscriptionsService: SubscriptionsService,
+    private readonly razorpayService: RazorpayService,
+  ) {}
 
   /**
    * Returns public subscription plan options for restaurant owners.
@@ -94,5 +109,53 @@ export class SubscriptionsController {
   generateLicense(@Body() payload: LicensePayload): { licenseKey: string } {
     const licenseKey = this.subscriptionsService.generateLicense(payload);
     return { licenseKey };
+  }
+
+  /**
+   * Creates a Razorpay checkout order for a subscription plan.
+   */
+  @Post('razorpay/create-order')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Create Razorpay checkout order for SaaS subscription',
+    description:
+      'Prepares a payment order in paise (INR) for Starter, Pro, or Enterprise tiers.',
+  })
+  async createRazorpayOrder(@Body() body: CreateOrderDto) {
+    if (!body?.plan) {
+      throw new BadRequestException('plan is required (STARTER, PRO, or ENTERPRISE)');
+    }
+    const restaurantId = body.restaurantId || 'demo-restaurant';
+    const restaurantName = body.restaurantName || 'Hanva Fine Dine';
+    return this.razorpayService.createSubscriptionOrder(
+      body.plan,
+      restaurantId,
+      restaurantName,
+    );
+  }
+
+  /**
+   * Razorpay Webhook receiver for payment.captured or order.paid events.
+   * Validates HMAC-SHA256 webhook signature and auto-renews/activates license.
+   */
+  @Post('razorpay/webhook')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Handle Razorpay subscription and payment webhooks',
+    description:
+      'Auto-generates signed license and activates subscription upon verified payment.',
+  })
+  async handleRazorpayWebhook(
+    @Headers('x-razorpay-signature') signature: string,
+    @Body() payload: any,
+  ) {
+    if (this.razorpayService.isConfigured()) {
+      const rawString = JSON.stringify(payload);
+      const isValid = this.razorpayService.verifyWebhookSignature(rawString, signature);
+      if (!isValid) {
+        throw new UnauthorizedException('Invalid Razorpay webhook signature');
+      }
+    }
+    return this.razorpayService.processWebhookEvent(payload);
   }
 }

@@ -4,9 +4,26 @@ import type {
   ActivateLicenseDto,
   LicenseStatusResponse,
   SubscriptionPlan,
+  SubscriptionPlanType,
 } from "@nodedr-restaurant/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+
+export interface CreateOrderParams {
+  plan: SubscriptionPlanType;
+  restaurantId?: string;
+  restaurantName?: string;
+}
+
+export interface RazorpayOrderResponse {
+  orderId: string;
+  amount: number;
+  currency: string;
+  keyId: string;
+  plan: SubscriptionPlanType;
+  restaurantId: string;
+  isDemo?: boolean;
+}
 
 export function useSubscriptionPlans() {
   return useQuery({
@@ -35,5 +52,12 @@ export function useActivateLicense() {
       queryClient.setQueryData(["license-status"], data);
       queryClient.invalidateQueries({ queryKey: ["license-status"] });
     },
+  });
+}
+
+export function useCreateRazorpayOrder() {
+  return useMutation({
+    mutationFn: (params: CreateOrderParams) =>
+      api.post<RazorpayOrderResponse>("/subscriptions/razorpay/create-order", params),
   });
 }
