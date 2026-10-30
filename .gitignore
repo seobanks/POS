@@ -19,3 +19,12 @@ docker-compose.override.yml
 # own ./out directory; these are only produced by a local `dotnet build`.
 windows/msix/Launcher/bin/
 windows/msix/Launcher/obj/
+
+# Windows Inno Setup staging, cache & binaries
+windows/installer/cache/
+windows/installer/staging/
+windows/installer/launcher/*.exe
+windows/installer/launcher/bin/
+windows/installer/launcher/obj/
+apps/backend/prisma/schema.sql
+apps/backend/prisma/dist/
