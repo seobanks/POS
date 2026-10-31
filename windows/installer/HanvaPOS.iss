@@ -12,7 +12,7 @@ AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
-DefaultDirName={autopf}\Hanva POS
+DefaultDirName={sd}\HanvaPOS
 DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
 OutputDir=C:\hp-dist
@@ -23,6 +23,7 @@ SolidCompression=yes
 WizardStyle=modern
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
+EnableDirDoesntExistWarning=no
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"

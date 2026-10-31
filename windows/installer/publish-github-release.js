@@ -119,28 +119,44 @@ async function main() {
     throw new Error(`Executable not found at ${EXE_PATH}`);
   }
 
-  console.log(`[1/3] Creating Release ${TAG} on github.com/${OWNER}/${REPO}...`);
-  const release = await apiRequest(`https://api.github.com/repos/${OWNER}/${REPO}/releases`, {
-    method: 'POST'
-  }, {
-    tag_name: TAG,
-    target_commitish: 'main',
-    name: `Hanva Fine Dine POS ${TAG} - Windows Desktop Installer`,
-    body: `### Hanva Fine Dine POS - Production Release ${TAG}\n\n` +
-      `Commercial offline-first restaurant billing POS with native system tray launcher, bundled PostgreSQL, and local Wi-Fi mesh.\n\n` +
-      `#### 📦 Included Distribution Assets:\n` +
-      `- **\`${ASSET_NAME}\`**: One-click Windows 10/11 x64 installer\n` +
-      `- Embedded Node.js runtime & PostgreSQL 16 database\n` +
-      `- Zero-dependency auto-initialization & local seed\n` +
-      `- ESC/POS thermal printing with Dynamic NPCI UPI QR code receipts\n` +
-      `- Wi-Fi LAN IP broadcast for waiter tablet mesh\n`,
-    draft: false,
-    prerelease: false
-  });
+  let release;
+  try {
+    console.log(`[1/3] Checking if release ${TAG} already exists on github.com/${OWNER}/${REPO}...`);
+    release = await apiRequest(`https://api.github.com/repos/${OWNER}/${REPO}/releases/tags/${TAG}`);
+    console.log(`[✓] Found existing release ${TAG} (ID: ${release.id})`);
+  } catch (err) {
+    console.log(`Release ${TAG} not found. Creating Release ${TAG}...`);
+    release = await apiRequest(`https://api.github.com/repos/${OWNER}/${REPO}/releases`, {
+      method: 'POST'
+    }, {
+      tag_name: TAG,
+      target_commitish: 'main',
+      name: `Hanva Fine Dine POS ${TAG} - Windows Desktop Installer`,
+      body: `### Hanva Fine Dine POS - Production Release ${TAG}\n\n` +
+        `Commercial offline-first restaurant billing POS with native system tray launcher, bundled PostgreSQL, and local Wi-Fi mesh.\n\n` +
+        `#### 📦 Included Distribution Assets:\n` +
+        `- **\`${ASSET_NAME}\`**: One-click Windows 10/11 x64 installer\n` +
+        `- Embedded Node.js runtime & PostgreSQL 16 database\n` +
+        `- Zero-dependency auto-initialization & local seed\n` +
+        `- ESC/POS thermal printing with Dynamic NPCI UPI QR code receipts\n` +
+        `- Wi-Fi LAN IP broadcast for waiter tablet mesh\n`,
+      draft: false,
+      prerelease: false
+    });
+    console.log(`[✓] Release created! ID: ${release.id}`);
+  }
 
-  console.log(`[✓] Release created! ID: ${release.id}`);
-  console.log(`    Release URL: ${release.html_url}`);
-  console.log(`    Upload URL: ${release.upload_url}`);
+  // Check if existing asset needs to be deleted
+  if (release.assets && release.assets.length > 0) {
+    const existingAsset = release.assets.find(a => a.name === ASSET_NAME);
+    if (existingAsset) {
+      console.log(`Found existing asset ${ASSET_NAME} (ID: ${existingAsset.id}). Deleting old asset...`);
+      await apiRequest(`https://api.github.com/repos/${OWNER}/${REPO}/releases/assets/${existingAsset.id}`, {
+        method: 'DELETE'
+      });
+      console.log(`[✓] Old asset deleted.`);
+    }
+  }
 
   console.log(`\n[2/3] Uploading installer asset (${ASSET_NAME})...`);
   const asset = await uploadFileStream(release.upload_url, EXE_PATH, ASSET_NAME);

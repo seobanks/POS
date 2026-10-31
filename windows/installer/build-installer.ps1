@@ -47,7 +47,7 @@ New-Item -ItemType Directory -Path $StageDir -Force | Out-Null
 New-Item -ItemType Directory -Path $DistDir -Force | Out-Null
 
 # 4. Compile Launcher
-Write-Host "`n[1/4] Compiling Native System Tray Launcher..." -ForegroundColor Yellow
+Write-Host "`n[1/5] Compiling Native System Tray Launcher..." -ForegroundColor Yellow
 $IconPath = "$RepoRoot\apps\web\public\icon.ico"
 if (-not (Test-Path $IconPath)) { $IconPath = "$StageDir\app.ico" }
 
@@ -56,7 +56,7 @@ if ($LASTEXITCODE -ne 0) { throw "Launcher compilation failed." }
 Write-Host "[✓] Compiled HanvaPOSLauncher.exe" -ForegroundColor Green
 
 # 5. Compile Prisma Schema and Seed if needed
-Write-Host "`n[2/4] Verifying database schema & seed..." -ForegroundColor Yellow
+Write-Host "`n[2/5] Verifying database schema & seed..." -ForegroundColor Yellow
 $PrismaDir = "$StageDir\app\backend\prisma"
 if (Test-Path "$RepoRoot\apps\backend\prisma\schema.sql") {
     Copy-Item "$RepoRoot\apps\backend\prisma\schema.sql" "$PrismaDir\schema.sql" -Force
@@ -71,15 +71,19 @@ if (Test-Path $IconPath) {
     Copy-Item $IconPath "$StageDir\app.ico" -Force
 }
 
-# 7. Compile Inno Setup Installer
-Write-Host "`n[3/4] Packaging with Inno Setup LZMA2 compression..." -ForegroundColor Yellow
+# 7. Prune unnecessary dev assets (MAX_PATH mitigation)
+Write-Host "`n[3/5] Pruning unnecessary dev assets (MAX_PATH mitigation)..." -ForegroundColor Yellow
+& node "$ScriptDir\prune-staging.js" "$StageDir"
+
+# 8. Compile Inno Setup Installer
+Write-Host "`n[4/5] Packaging with Inno Setup LZMA2 compression..." -ForegroundColor Yellow
 & $IsccExe "$ScriptDir\HanvaPOS.iss"
 if ($LASTEXITCODE -ne 0) { throw "Inno Setup compilation failed." }
 
 $OutputExe = "$DistDir\HanvaPOS-Setup-v$Version.exe"
 if (Test-Path $OutputExe) {
     $SizeMB = [math]::Round(((Get-Item $OutputExe).Length / 1MB), 2)
-    Write-Host "`n[✓] INSTALLER CREATED SUCCESSFULLY!" -ForegroundColor Green
+    Write-Host "`n[5/5] INSTALLER CREATED SUCCESSFULLY!" -ForegroundColor Green
     Write-Host "    File: $OutputExe" -ForegroundColor Cyan
     Write-Host "    Size: $SizeMB MB" -ForegroundColor Cyan
 } else {
