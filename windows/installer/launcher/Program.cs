@@ -38,85 +38,97 @@ namespace HanvaPOS.Launcher
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(debugLog));
                 File.AppendAllText(debugLog, string.Format("{0:yyyy-MM-dd HH:mm:ss} Launcher Main started (PID {1})\n", DateTime.Now, Process.GetCurrentProcess().Id));
-            }
-            catch { }
 
-            Application.EnableVisualStyles();
-            Application.SetCompatibleTextRenderingDefault(false);
+                Application.EnableVisualStyles();
+                Application.SetCompatibleTextRenderingDefault(false);
 
-            bool isOnlyInstance = false;
-            try
-            {
-                _singleInstanceMutex = new Mutex(true, "Local\\HanvaPOS_SingleInstance_Mutex", out isOnlyInstance);
+                bool isOnlyInstance = false;
+                try
+                {
+                    _singleInstanceMutex = new Mutex(true, "Local\\HanvaPOS_SingleInstance_Mutex", out isOnlyInstance);
+                    if (!isOnlyInstance)
+                    {
+                        isOnlyInstance = _singleInstanceMutex.WaitOne(0, false);
+                    }
+                }
+                catch (AbandonedMutexException)
+                {
+                    // Previous instance exited or was killed; we take ownership!
+                    isOnlyInstance = true;
+                }
+
+                File.AppendAllText(debugLog, string.Format("{0:yyyy-MM-dd HH:mm:ss} Mutex check: isOnlyInstance={1}\n", DateTime.Now, isOnlyInstance));
+
                 if (!isOnlyInstance)
                 {
-                    isOnlyInstance = _singleInstanceMutex.WaitOne(0, false);
+                    // Another instance is genuinely actively running — open POS if ready, else notify
+                    try
+                    {
+                        File.AppendAllText(debugLog, string.Format("{0:yyyy-MM-dd HH:mm:ss} Second instance detected, checking port 3000...\n", DateTime.Now));
+                        bool ready = false;
+                        using (var client = new HttpClient())
+                        {
+                            client.Timeout = TimeSpan.FromSeconds(1);
+                            try
+                            {
+                                var res = client.GetAsync("http://127.0.0.1:3000").Result;
+                                ready = res.IsSuccessStatusCode || res.StatusCode == HttpStatusCode.Redirect;
+                            }
+                            catch { }
+                        }
+
+                        if (ready)
+                        {
+                            OpenAppWindow("http://localhost:3000");
+                        }
+                        else
+                        {
+                            MessageBox.Show("Hanva Fine Dine POS is starting up in the background.\nPlease check the Hanva icon in your system tray (bottom-right near the clock).",
+                                "Hanva POS Starting", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        }
+                    }
+                    catch { }
+                    return;
                 }
-            }
-            catch (AbandonedMutexException)
-            {
-                // Previous instance exited or was killed; we take ownership!
-                isOnlyInstance = true;
-            }
 
-            try
-            {
-                File.AppendAllText(debugLog, string.Format("{0:yyyy-MM-dd HH:mm:ss} Mutex check: isOnlyInstance={1}\n", DateTime.Now, isOnlyInstance));
-            }
-            catch { }
+                InitPaths();
+                File.AppendAllText(debugLog, string.Format("{0:yyyy-MM-dd HH:mm:ss} InitPaths completed. _appDir={1}\n", DateTime.Now, _appDir));
 
-            if (!isOnlyInstance)
+                _localIp = GetLocalIpAddress();
+                File.AppendAllText(debugLog, string.Format("{0:yyyy-MM-dd HH:mm:ss} Local IP={1}\n", DateTime.Now, _localIp));
+
+                InitializeTray();
+                File.AppendAllText(debugLog, string.Format("{0:yyyy-MM-dd HH:mm:ss} InitializeTray completed\n", DateTime.Now));
+
+                // Run supervisor in background thread
+                Task.Run(async () =>
+                {
+                    try
+                    {
+                        File.AppendAllText(debugLog, string.Format("{0:yyyy-MM-dd HH:mm:ss} Background task starting StartServicesAsync...\n", DateTime.Now));
+                        await StartServicesAsync();
+                        File.AppendAllText(debugLog, string.Format("{0:yyyy-MM-dd HH:mm:ss} StartServicesAsync finished.\n", DateTime.Now));
+                    }
+                    catch (Exception ex)
+                    {
+                        File.AppendAllText(debugLog, string.Format("{0:yyyy-MM-dd HH:mm:ss} Supervisor fatal error: {1}\n", DateTime.Now, ex));
+                        LogError("Supervisor fatal error", ex);
+                        ShowBalloon("Startup Error", "Could not start POS services: " + ex.Message, ToolTipIcon.Error);
+                    }
+                });
+
+                File.AppendAllText(debugLog, string.Format("{0:yyyy-MM-dd HH:mm:ss} Calling Application.Run()...\n", DateTime.Now));
+                Application.Run();
+                File.AppendAllText(debugLog, string.Format("{0:yyyy-MM-dd HH:mm:ss} Application.Run() exited.\n", DateTime.Now));
+            }
+            catch (Exception ex)
             {
-                // Another instance is genuinely actively running — open POS if ready, else notify
                 try
                 {
-                    File.AppendAllText(debugLog, string.Format("{0:yyyy-MM-dd HH:mm:ss} Second instance detected, checking port 3000...\n", DateTime.Now));
-                    bool ready = false;
-                    using (var client = new HttpClient())
-                    {
-                        client.Timeout = TimeSpan.FromSeconds(1);
-                        try
-                        {
-                            var res = client.GetAsync("http://127.0.0.1:3000").Result;
-                            ready = res.IsSuccessStatusCode || res.StatusCode == HttpStatusCode.Redirect;
-                        }
-                        catch { }
-                    }
-
-                    if (ready)
-                    {
-                        Process.Start(new ProcessStartInfo("http://localhost:3000") { UseShellExecute = true });
-                    }
-                    else
-                    {
-                        MessageBox.Show("Hanva Fine Dine POS is starting up in the background.\nPlease check the Hanva icon in your system tray (bottom-right near the clock).",
-                            "Hanva POS Starting", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    }
+                    File.AppendAllText(debugLog, string.Format("{0:yyyy-MM-dd HH:mm:ss} CRASH IN MAIN: {1}\n", DateTime.Now, ex));
                 }
                 catch { }
-                return;
             }
-
-            InitPaths();
-            _localIp = GetLocalIpAddress();
-
-            InitializeTray();
-
-            // Run supervisor in background thread
-            Task.Run(async () =>
-            {
-                try
-                {
-                    await StartServicesAsync();
-                }
-                catch (Exception ex)
-                {
-                    LogError("Supervisor fatal error", ex);
-                    ShowBalloon("Startup Error", "Could not start POS services: " + ex.Message, ToolTipIcon.Error);
-                }
-            });
-
-            Application.Run();
         }
 
         private static void InitPaths()
@@ -169,7 +181,7 @@ namespace HanvaPOS.Launcher
             menu.Items.Add(titleItem);
             menu.Items.Add(new ToolStripSeparator());
 
-            ToolStripMenuItem openPosItem = new ToolStripMenuItem("Open Billing POS (http://localhost:3000)", null, (s, e) => OpenBrowser("http://localhost:3000"));
+            ToolStripMenuItem openPosItem = new ToolStripMenuItem("Open Billing POS Window", null, (s, e) => OpenAppWindow("http://localhost:3000"));
             openPosItem.Font = new Font(Control.DefaultFont, FontStyle.Bold);
             menu.Items.Add(openPosItem);
 
@@ -199,7 +211,7 @@ namespace HanvaPOS.Launcher
             menu.Items.Add(exitItem);
 
             _trayIcon.ContextMenuStrip = menu;
-            _trayIcon.DoubleClick += (s, e) => OpenBrowser("http://localhost:3000");
+            _trayIcon.DoubleClick += (s, e) => OpenAppWindow("http://localhost:3000");
             _trayIcon.Visible = true;
         }
 
@@ -218,13 +230,13 @@ namespace HanvaPOS.Launcher
             StartWebProcess();
 
             // Wait for Web to become healthy
-            bool webReady = await WaitForHttpAsync("http://127.0.0.1:3000", TimeSpan.FromSeconds(30));
+            bool webReady = await WaitForHttpAsync("http://127.0.0.1:3000", TimeSpan.FromSeconds(60));
             if (webReady)
             {
                 UpdateTrayStatus("Online (Port 3000)");
-                string msg = string.Format("Billing Counter ready on http://localhost:3000\nWi-Fi Tablets: http://{0}:3000", _localIp);
+                string msg = string.Format("Billing Counter ready.\nWi-Fi Waiter Tablets: http://{0}:3000", _localIp);
                 ShowBalloon("Hanva POS Online", msg, ToolTipIcon.Info);
-                OpenBrowser("http://localhost:3000");
+                OpenAppWindow("http://localhost:3000");
             }
             else
             {
@@ -385,7 +397,11 @@ namespace HanvaPOS.Launcher
 
             string serverJs = Path.Combine(_webDir, "apps", "web", "server.js");
             string workingDir = _webDir;
-            if (!File.Exists(serverJs))
+            if (File.Exists(serverJs))
+            {
+                workingDir = Path.Combine(_webDir, "apps", "web");
+            }
+            else
             {
                 serverJs = Path.Combine(_webDir, "server.js");
             }
@@ -565,9 +581,61 @@ namespace HanvaPOS.Launcher
             return Convert.ToBase64String(data).Replace("+", "").Replace("/", "").Substring(0, bytes);
         }
 
+        private static void OpenAppWindow(string url)
+        {
+            try
+            {
+                // Prefer Microsoft Edge as it is guaranteed on Windows 10/11, or Google Chrome / Brave
+                string[] candidateBrowsers = new string[]
+                {
+                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Microsoft", "Edge", "Application", "msedge.exe"),
+                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Microsoft", "Edge", "Application", "msedge.exe"),
+                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Google", "Chrome", "Application", "chrome.exe"),
+                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Google", "Chrome", "Application", "chrome.exe"),
+                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Google", "Chrome", "Application", "chrome.exe"),
+                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "BraveSoftware", "Brave-Browser", "Application", "brave.exe")
+                };
+
+                string browserPath = null;
+                foreach (string candidate in candidateBrowsers)
+                {
+                    if (File.Exists(candidate))
+                    {
+                        browserPath = candidate;
+                        break;
+                    }
+                }
+
+                if (browserPath != null)
+                {
+                    string profileDir = Path.Combine(_dataDir, "app-profile");
+                    try { Directory.CreateDirectory(profileDir); } catch { }
+
+                    // Launch in standalone software window mode (frameless, zero address bar, isolated profile)
+                    string arguments = string.Format(
+                        "--app=\"{0}\" --window-size=1366,768 --user-data-dir=\"{1}\" --no-first-run --no-default-browser-check --disable-features=Translate,ChromeWhatsNewUI",
+                        url,
+                        profileDir
+                    );
+
+                    ProcessStartInfo psi = new ProcessStartInfo(browserPath, arguments);
+                    psi.UseShellExecute = false;
+                    psi.CreateNoWindow = false;
+                    Process.Start(psi);
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                LogError("Failed to launch standalone app window, falling back to shell execute", ex);
+            }
+
+            try { Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); } catch { }
+        }
+
         private static void OpenBrowser(string url)
         {
-            try { Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); } catch { }
+            OpenAppWindow(url);
         }
 
         private static void UpdateTrayStatus(string status)
