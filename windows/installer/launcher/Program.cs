@@ -33,15 +33,67 @@ namespace HanvaPOS.Launcher
         [STAThread]
         static void Main()
         {
+            string debugLog = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "HanvaPOS", "data", "logs", "launcher-debug.log");
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(debugLog));
+                File.AppendAllText(debugLog, string.Format("{0:yyyy-MM-dd HH:mm:ss} Launcher Main started (PID {1})\n", DateTime.Now, Process.GetCurrentProcess().Id));
+            }
+            catch { }
+
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
-            bool createdNew;
-            _singleInstanceMutex = new Mutex(true, "Global\\HanvaPOS_SingleInstance_Mutex", out createdNew);
-            if (!createdNew)
+            bool isOnlyInstance = false;
+            try
             {
-                // Already running — just open the POS in browser and exit
-                try { Process.Start(new ProcessStartInfo("http://localhost:3000") { UseShellExecute = true }); } catch { }
+                _singleInstanceMutex = new Mutex(true, "Local\\HanvaPOS_SingleInstance_Mutex", out isOnlyInstance);
+                if (!isOnlyInstance)
+                {
+                    isOnlyInstance = _singleInstanceMutex.WaitOne(0, false);
+                }
+            }
+            catch (AbandonedMutexException)
+            {
+                // Previous instance exited or was killed; we take ownership!
+                isOnlyInstance = true;
+            }
+
+            try
+            {
+                File.AppendAllText(debugLog, string.Format("{0:yyyy-MM-dd HH:mm:ss} Mutex check: isOnlyInstance={1}\n", DateTime.Now, isOnlyInstance));
+            }
+            catch { }
+
+            if (!isOnlyInstance)
+            {
+                // Another instance is genuinely actively running — open POS if ready, else notify
+                try
+                {
+                    File.AppendAllText(debugLog, string.Format("{0:yyyy-MM-dd HH:mm:ss} Second instance detected, checking port 3000...\n", DateTime.Now));
+                    bool ready = false;
+                    using (var client = new HttpClient())
+                    {
+                        client.Timeout = TimeSpan.FromSeconds(1);
+                        try
+                        {
+                            var res = client.GetAsync("http://127.0.0.1:3000").Result;
+                            ready = res.IsSuccessStatusCode || res.StatusCode == HttpStatusCode.Redirect;
+                        }
+                        catch { }
+                    }
+
+                    if (ready)
+                    {
+                        Process.Start(new ProcessStartInfo("http://localhost:3000") { UseShellExecute = true });
+                    }
+                    else
+                    {
+                        MessageBox.Show("Hanva Fine Dine POS is starting up in the background.\nPlease check the Hanva icon in your system tray (bottom-right near the clock).",
+                            "Hanva POS Starting", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                }
+                catch { }
                 return;
             }
 
@@ -201,13 +253,22 @@ namespace HanvaPOS.Launcher
                 await RunProcessAsync(initdbExe, initArgs, _pgBinDir);
             }
 
-            // 2. Start PostgreSQL
-            Log("Starting PostgreSQL service...");
-            string logPath = Path.Combine(_logsDir, "postgres.log");
-            string startArgs = string.Format("start -D \"{0}\" -l \"{1}\" -w", _pgDataDir, logPath);
-            await RunProcessAsync(pgctlExe, startArgs, _pgBinDir);
+            // 2. Start PostgreSQL if not already running
+            string statusArgs = string.Format("status -D \"{0}\"", _pgDataDir);
+            int statusExit = await RunProcessAsync(pgctlExe, statusArgs, _pgBinDir);
+            if (statusExit != 0)
+            {
+                Log("Starting PostgreSQL service...");
+                string logPath = Path.Combine(_logsDir, "postgres.log");
+                string startArgs = string.Format("start -D \"{0}\" -l \"{1}\" -w", _pgDataDir, logPath);
+                await RunProcessAsync(pgctlExe, startArgs, _pgBinDir);
+            }
+            else
+            {
+                Log("PostgreSQL service is already active.");
+            }
 
-            // 3. For new installations, create database, run schema and seed
+            // 3. For new installations, create database, run migrations and seed
             if (isFirstInit)
             {
                 await Task.Delay(2000);
@@ -219,23 +280,34 @@ namespace HanvaPOS.Launcher
                     await RunProcessAsync(createdbExe, "-U postgres -h 127.0.0.1 -p 5432 hanva_pos", _pgBinDir);
                 }
 
-                string psqlExe = Path.Combine(_pgBinDir, "psql.exe");
-                string schemaSql = Path.Combine(_backendDir, "prisma", "schema.sql");
-                if (File.Exists(psqlExe) && File.Exists(schemaSql))
+                var dbEnv = new System.Collections.Generic.Dictionary<string, string>();
+                dbEnv["DATABASE_URL"] = "postgresql://postgres@127.0.0.1:5432/hanva_pos?schema=public";
+                dbEnv["NODE_ENV"] = "production";
+
+                string prismaCli = Path.Combine(_backendDir, "node_modules", "prisma", "build", "index.js");
+                if (File.Exists(prismaCli))
                 {
-                    Log("Applying initial database schema from " + schemaSql);
-                    string psqlArgs = string.Format("-U postgres -h 127.0.0.1 -p 5432 -d hanva_pos -f \"{0}\"", schemaSql);
-                    await RunProcessAsync(psqlExe, psqlArgs, _pgBinDir);
+                    Log("Applying database migrations with Prisma migrate deploy...");
+                    await RunProcessAsync(_nodeExe, "\"" + prismaCli + "\" migrate deploy", _backendDir, dbEnv);
+                }
+                else
+                {
+                    string psqlExe = Path.Combine(_pgBinDir, "psql.exe");
+                    string schemaSql = Path.Combine(_backendDir, "prisma", "schema.sql");
+                    if (File.Exists(psqlExe) && File.Exists(schemaSql))
+                    {
+                        Log("Applying initial database schema from " + schemaSql);
+                        string psqlArgs = string.Format("-U postgres -h 127.0.0.1 -p 5432 -d hanva_pos -f \"{0}\"", schemaSql);
+                        await RunProcessAsync(psqlExe, psqlArgs, _pgBinDir);
+                    }
                 }
 
                 string seedJs = Path.Combine(_backendDir, "prisma", "dist", "seed.js");
+                if (!File.Exists(seedJs)) seedJs = Path.Combine(_backendDir, "dist", "prisma", "seed.js");
                 if (File.Exists(seedJs))
                 {
                     Log("Seeding default restaurant and credentials from " + seedJs);
-                    var seedEnv = new System.Collections.Generic.Dictionary<string, string>();
-                    seedEnv["DATABASE_URL"] = "postgresql://postgres@127.0.0.1:5432/hanva_pos?schema=public";
-                    seedEnv["NODE_ENV"] = "production";
-                    await RunProcessAsync(_nodeExe, "\"" + seedJs + "\"", _backendDir, seedEnv);
+                    await RunProcessAsync(_nodeExe, "\"" + seedJs + "\"", _backendDir, dbEnv);
                 }
             }
         }
@@ -311,7 +383,13 @@ namespace HanvaPOS.Launcher
         {
             StopProcess(ref _webProcess);
 
-            string serverJs = Path.Combine(_webDir, "server.js");
+            string serverJs = Path.Combine(_webDir, "apps", "web", "server.js");
+            string workingDir = _webDir;
+            if (!File.Exists(serverJs))
+            {
+                serverJs = Path.Combine(_webDir, "server.js");
+            }
+
             if (!File.Exists(serverJs))
             {
                 LogError("Next.js web standalone server not found: " + serverJs, null);
@@ -322,7 +400,7 @@ namespace HanvaPOS.Launcher
             {
                 FileName = _nodeExe,
                 Arguments = "\"" + serverJs + "\"",
-                WorkingDirectory = _webDir,
+                WorkingDirectory = workingDir,
                 UseShellExecute = false,
                 CreateNoWindow = true,
                 RedirectStandardOutput = true,
@@ -431,9 +509,26 @@ namespace HanvaPOS.Launcher
                     }
                 }
 
-                using (Process p = Process.Start(psi))
+                using (Process p = new Process())
                 {
+                    p.StartInfo = psi;
+                    StringBuilder output = new StringBuilder();
+                    StringBuilder error = new StringBuilder();
+
+                    p.OutputDataReceived += (s, e) => { if (e.Data != null) output.AppendLine(e.Data); };
+                    p.ErrorDataReceived += (s, e) => { if (e.Data != null) error.AppendLine(e.Data); };
+
+                    p.Start();
+                    p.BeginOutputReadLine();
+                    p.BeginErrorReadLine();
                     p.WaitForExit();
+
+                    if (p.ExitCode != 0)
+                    {
+                        string errText = error.ToString().Trim();
+                        if (string.IsNullOrEmpty(errText)) errText = output.ToString().Trim();
+                        Log("Command (" + Path.GetFileName(exe) + ") exited with code " + p.ExitCode + ": " + errText);
+                    }
                     return p.ExitCode;
                 }
             });

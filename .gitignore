@@ -28,3 +28,4 @@ windows/installer/launcher/bin/
 windows/installer/launcher/obj/
 apps/backend/prisma/schema.sql
 apps/backend/prisma/dist/
+out_backend_deploy/
