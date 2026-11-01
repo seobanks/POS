@@ -23,7 +23,28 @@ SolidCompression=yes
 WizardStyle=modern
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
+CloseApplications=yes
+CloseApplicationsFilter=HanvaPOSLauncher.exe
+RestartApplications=no
 EnableDirDoesntExistWarning=no
+
+[Code]
+function InitializeSetup(): Boolean;
+var
+  ResultCode: Integer;
+begin
+  // Terminate running launcher so DeleteFile/Access is denied never occurs
+  Exec('taskkill.exe', '/F /IM HanvaPOSLauncher.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Result := True;
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  ResultCode: Integer;
+begin
+  Exec('taskkill.exe', '/F /IM HanvaPOSLauncher.exe', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Result := '';
+end;
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
