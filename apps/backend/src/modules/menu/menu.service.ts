@@ -289,4 +289,117 @@ export class MenuService {
       },
     });
   }
+
+  async bulkImportItems(
+    branchId: string,
+    userId: string,
+    items: Array<{
+      category: string;
+      name: string;
+      price: number;
+      halfPrice?: number | null;
+      description?: string;
+      isVeg?: boolean;
+      taxRatePercent?: number;
+      sku?: string;
+      barcode?: string;
+      spiceLevel?: 'NONE' | 'MILD' | 'MEDIUM' | 'HOT' | 'EXTRA_HOT';
+    }>,
+  ) {
+    if (!items || items.length === 0) {
+      throw new BadRequestException('No items provided for bulk import');
+    }
+
+    // 1. Fetch all existing categories in this branch
+    const existingCategories = await this.prisma.menuCategory.findMany({
+      where: { branchId },
+    });
+    const categoryMap = new Map<string, string>();
+    existingCategories.forEach((c) =>
+      categoryMap.set(c.name.trim().toLowerCase(), c.id),
+    );
+
+    let categoriesCreated = 0;
+
+    // 2. Identify missing categories and create them
+    for (const item of items) {
+      const catName = (item.category || 'General').trim();
+      const catKey = catName.toLowerCase();
+      if (!categoryMap.has(catKey)) {
+        const newCategory = await this.prisma.menuCategory.create({
+          data: {
+            branchId,
+            name: catName,
+            sortOrder: existingCategories.length + categoriesCreated,
+          },
+        });
+        categoryMap.set(catKey, newCategory.id);
+        categoriesCreated++;
+      }
+    }
+
+    // 3. Upsert menu items
+    let imported = 0;
+    for (const item of items) {
+      if (!item.name || !item.name.trim()) continue;
+      const catKey = (item.category || 'General').trim().toLowerCase();
+      const categoryId = categoryMap.get(catKey)!;
+      const itemName = item.name.trim();
+
+      const existingItem = await this.prisma.menuItem.findFirst({
+        where: { branchId, categoryId, name: itemName },
+      });
+
+      const price = Number(item.price) || 0;
+      const halfPrice = item.halfPrice ? Number(item.halfPrice) : null;
+      const taxRatePercent =
+        item.taxRatePercent !== undefined ? Number(item.taxRatePercent) : 5;
+
+      if (existingItem) {
+        await this.prisma.menuItem.update({
+          where: { id: existingItem.id },
+          data: {
+            price,
+            halfPrice,
+            description: item.description || existingItem.description,
+            isVeg: item.isVeg !== undefined ? item.isVeg : existingItem.isVeg,
+            taxRatePercent,
+            sku: item.sku || existingItem.sku,
+            barcode: item.barcode || existingItem.barcode,
+            spiceLevel: item.spiceLevel || existingItem.spiceLevel,
+          },
+        });
+      } else {
+        await this.prisma.menuItem.create({
+          data: {
+            branchId,
+            categoryId,
+            name: itemName,
+            price,
+            halfPrice,
+            description: item.description || null,
+            isVeg: item.isVeg !== undefined ? item.isVeg : true,
+            taxRatePercent,
+            sku: item.sku || null,
+            barcode: item.barcode || null,
+            spiceLevel: item.spiceLevel || 'NONE',
+          },
+        });
+      }
+      imported++;
+    }
+
+    await this.audit.record({
+      userId,
+      action: 'menu.bulk_imported',
+      entity: 'MenuItem',
+      metadata: { count: imported, categoriesCreated },
+    });
+
+    return {
+      success: true,
+      count: imported,
+      categoriesCreated,
+    };
+  }
 }

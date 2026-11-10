@@ -137,3 +137,21 @@ export function useDeleteMenuItem(branchId: string | null) {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["menu", "items", branchId] }),
   });
 }
+
+import type { BulkMenuItemInput } from "@/lib/csv-parser";
+export type { BulkMenuItemInput };
+
+export function useBulkImportMenuItems(branchId: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (items: BulkMenuItemInput[]) =>
+      api.post<{ success: boolean; count: number; categoriesCreated: number }>(
+        `/menu/items/bulk?branchId=${branchId}`,
+        { items },
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["menu", "items", branchId] });
+      queryClient.invalidateQueries({ queryKey: ["menu", "categories", branchId] });
+    },
+  });
+}

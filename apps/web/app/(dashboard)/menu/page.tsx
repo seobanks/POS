@@ -5,6 +5,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { AddCategoryDialog } from "@/components/menu/add-category-dialog";
 import { AddItemDialog } from "@/components/menu/add-item-dialog";
+import { BulkImportDialog } from "@/components/menu/bulk-import-dialog";
 import { ComboComponentsDialog } from "@/components/menu/combo-components-dialog";
 import { EditCategoryDialog } from "@/components/menu/edit-category-dialog";
 import { EditItemDialog } from "@/components/menu/edit-item-dialog";
@@ -192,9 +193,14 @@ export default function MenuPage() {
         </Card>
 
         <Card className="flex flex-col gap-4 p-4 sm:p-6">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-[18px] font-medium text-foreground">Items</h2>
-            {canManage && <AddItemDialog branchId={branchId} categories={categories ?? []} />}
+            {canManage && (
+              <div className="flex items-center gap-2">
+                <BulkImportDialog branchId={branchId} />
+                <AddItemDialog branchId={branchId} categories={categories ?? []} />
+              </div>
+            )}
           </div>
 
           {itemsLoading ? (
