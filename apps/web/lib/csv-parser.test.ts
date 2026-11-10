@@ -59,6 +59,7 @@ test("exportMenuToCsv produces valid CSV with escaped fields", () => {
       sku: "PT-01",
       barcode: "",
       spiceLevel: "MEDIUM",
+      imageUrl: "https://example.com/paneer.jpg",
     },
   ];
 
@@ -66,6 +67,7 @@ test("exportMenuToCsv produces valid CSV with escaped fields", () => {
   assert.match(csv, /^Category,Item Name,Price/);
   assert.match(csv, /"Paneer, ""Special"" Tikka"/);
   assert.match(csv, /"Rich marinade, cottage cheese"/);
+  assert.match(csv, /https:\/\/example.com\/paneer.jpg/);
 
   // Round-trip parse test
   const parsed = parseMenuCsv(csv);
@@ -73,4 +75,5 @@ test("exportMenuToCsv produces valid CSV with escaped fields", () => {
   assert.equal(parsed.items[0].name, 'Paneer, "Special" Tikka');
   assert.equal(parsed.items[0].price, 280);
   assert.equal(parsed.items[0].isVeg, true);
+  assert.equal(parsed.items[0].imageUrl, "https://example.com/paneer.jpg");
 });

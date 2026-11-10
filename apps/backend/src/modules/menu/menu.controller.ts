@@ -133,17 +133,17 @@ export class MenuController {
   @Header('Content-Disposition', 'attachment; filename="menu_template.csv"')
   getTemplateCsv() {
     const header =
-      'Category,Item Name,Price,Half Price,Food Type,Tax Rate %,Description,SKU,Barcode,Spicy Level\n';
+      'Category,Item Name,Price,Half Price,Food Type,Tax Rate %,Description,SKU,Barcode,Spicy Level,Image URL\n';
     const rows = [
-      'Starters,Paneer Tikka,280,160,Veg,5,Marinated cottage cheese grilled in tandoor,PT-01,,MEDIUM',
-      'Starters,Chicken Tikka,340,190,Non-Veg,5,Succulent chicken chunks roasted with tandoori spices,CT-01,,HOT',
-      'Main Course,Butter Chicken,380,220,Non-Veg,5,Tender chicken simmered in rich buttery tomato gravy,BC-01,,MILD',
-      'Main Course,Dal Makhani,260,150,Veg,5,Slow-cooked black lentils with cream and butter,DM-01,,NONE',
-      'Breads,Butter Naan,60,,Veg,5,Traditional clay oven flatbread with butter,BN-01,,NONE',
-      'Breads,Garlic Naan,80,,Veg,5,Tandoori flatbread topped with minced garlic and coriander,GN-01,,NONE',
-      'Rice & Biryani,Hyderabadi Chicken Biryani,350,,Non-Veg,5,Aromatic basmati rice cooked with spiced chicken and saffron,HB-01,,HOT',
-      'Desserts,Gulab Jamun,120,,Veg,5,Warm milk dumplings soaked in cardamom sugar syrup,GJ-01,,NONE',
-      'Beverages,Sweet Lassi,90,,Veg,5,Traditional churned sweet yogurt drink,SL-01,,NONE',
+      'Starters,Paneer Tikka,280,160,Veg,5,Marinated cottage cheese grilled in tandoor,PT-01,,MEDIUM,',
+      'Starters,Chicken Tikka,340,190,Non-Veg,5,Succulent chicken chunks roasted with tandoori spices,CT-01,,HOT,',
+      'Main Course,Butter Chicken,380,220,Non-Veg,5,Tender chicken simmered in rich buttery tomato gravy,BC-01,,MILD,',
+      'Main Course,Dal Makhani,260,150,Veg,5,Slow-cooked black lentils with cream and butter,DM-01,,NONE,',
+      'Breads,Butter Naan,60,,Veg,5,Traditional clay oven flatbread with butter,BN-01,,NONE,',
+      'Breads,Garlic Naan,80,,Veg,5,Tandoori flatbread topped with minced garlic and coriander,GN-01,,NONE,',
+      'Rice & Biryani,Hyderabadi Chicken Biryani,350,,Non-Veg,5,Aromatic basmati rice cooked with spiced chicken and saffron,HB-01,,HOT,',
+      'Desserts,Gulab Jamun,120,,Veg,5,Warm milk dumplings soaked in cardamom sugar syrup,GJ-01,,NONE,',
+      'Beverages,Sweet Lassi,90,,Veg,5,Traditional churned sweet yogurt drink,SL-01,,NONE,',
     ].join('\n');
     return header + rows;
   }

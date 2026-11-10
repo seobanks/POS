@@ -304,6 +304,7 @@ export class MenuService {
       sku?: string;
       barcode?: string;
       spiceLevel?: 'NONE' | 'MILD' | 'MEDIUM' | 'HOT' | 'EXTRA_HOT';
+      imageUrl?: string | null;
     }>,
   ) {
     if (!items || items.length === 0) {
@@ -350,6 +351,7 @@ export class MenuService {
         sku: true,
         barcode: true,
         spiceLevel: true,
+        imageUrl: true,
       },
     });
 
@@ -388,6 +390,7 @@ export class MenuService {
               sku: item.sku ?? existingItem.sku,
               barcode: item.barcode ?? existingItem.barcode,
               spiceLevel: (item.spiceLevel as any) ?? existingItem.spiceLevel,
+              imageUrl: item.imageUrl ?? existingItem.imageUrl,
             },
           }),
         );
@@ -404,6 +407,7 @@ export class MenuService {
           sku: item.sku || null,
           barcode: item.barcode || null,
           spiceLevel: item.spiceLevel || 'NONE',
+          imageUrl: item.imageUrl || null,
         });
       }
       imported++;

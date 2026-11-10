@@ -10,6 +10,7 @@ export interface BulkMenuItemInput {
   sku?: string;
   barcode?: string;
   spiceLevel?: "NONE" | "MILD" | "MEDIUM" | "HOT" | "EXTRA_HOT";
+  imageUrl?: string;
 }
 
 /**
@@ -102,6 +103,7 @@ export function parseMenuCsv(csvText: string): ParsedMenuResult {
   const skuIdx = findColIndex("sku", "code", "itemcode");
   const barcodeIdx = findColIndex("barcode");
   const spiceIdx = findColIndex("spicylevel", "spicelevel", "spice");
+  const imageIdx = findColIndex("imageurl", "image", "photo", "img");
 
   if (nameIdx === -1 || priceIdx === -1) {
     return {
@@ -188,6 +190,7 @@ export function parseMenuCsv(csvText: string): ParsedMenuResult {
       sku: skuIdx !== -1 && row[skuIdx] ? row[skuIdx].trim() : undefined,
       barcode: barcodeIdx !== -1 && row[barcodeIdx] ? row[barcodeIdx].trim() : undefined,
       spiceLevel,
+      imageUrl: imageIdx !== -1 && row[imageIdx] ? row[imageIdx].trim() : undefined,
     });
   }
 
@@ -199,16 +202,16 @@ export function parseMenuCsv(csvText: string): ParsedMenuResult {
 }
 
 export const SAMPLE_MENU_CSV = [
-  "Category,Item Name,Price,Half Price,Food Type,Tax Rate %,Description,SKU,Barcode,Spicy Level",
-  "Starters,Paneer Tikka,280,160,Veg,5,Marinated cottage cheese grilled in tandoor,PT-01,,MEDIUM",
-  "Starters,Chicken Tikka,340,190,Non-Veg,5,Succulent chicken chunks roasted with tandoori spices,CT-01,,HOT",
-  "Main Course,Butter Chicken,380,220,Non-Veg,5,Tender chicken simmered in rich buttery tomato gravy,BC-01,,MILD",
-  "Main Course,Dal Makhani,260,150,Veg,5,Slow-cooked black lentils with cream and butter,DM-01,,NONE",
-  "Breads,Butter Naan,60,,Veg,5,Traditional clay oven flatbread with butter,BN-01,,NONE",
-  "Breads,Garlic Naan,80,,Veg,5,Tandoori flatbread topped with minced garlic and coriander,GN-01,,NONE",
-  "Rice & Biryani,Hyderabadi Chicken Biryani,350,,Non-Veg,5,Aromatic basmati rice cooked with spiced chicken and saffron,HB-01,,HOT",
-  "Desserts,Gulab Jamun,120,,Veg,5,Warm milk dumplings soaked in cardamom sugar syrup,GJ-01,,NONE",
-  "Beverages,Sweet Lassi,90,,Veg,5,Traditional churned sweet yogurt drink,SL-01,,NONE",
+  "Category,Item Name,Price,Half Price,Food Type,Tax Rate %,Description,SKU,Barcode,Spicy Level,Image URL",
+  "Starters,Paneer Tikka,280,160,Veg,5,Marinated cottage cheese grilled in tandoor,PT-01,,MEDIUM,",
+  "Starters,Chicken Tikka,340,190,Non-Veg,5,Succulent chicken chunks roasted with tandoori spices,CT-01,,HOT,",
+  "Main Course,Butter Chicken,380,220,Non-Veg,5,Tender chicken simmered in rich buttery tomato gravy,BC-01,,MILD,",
+  "Main Course,Dal Makhani,260,150,Veg,5,Slow-cooked black lentils with cream and butter,DM-01,,NONE,",
+  "Breads,Butter Naan,60,,Veg,5,Traditional clay oven flatbread with butter,BN-01,,NONE,",
+  "Breads,Garlic Naan,80,,Veg,5,Tandoori flatbread topped with minced garlic and coriander,GN-01,,NONE,",
+  "Rice & Biryani,Hyderabadi Chicken Biryani,350,,Non-Veg,5,Aromatic basmati rice cooked with spiced chicken and saffron,HB-01,,HOT,",
+  "Desserts,Gulab Jamun,120,,Veg,5,Warm milk dumplings soaked in cardamom sugar syrup,GJ-01,,NONE,",
+  "Beverages,Sweet Lassi,90,,Veg,5,Traditional churned sweet yogurt drink,SL-01,,NONE,",
 ].join("\n");
 
 function escapeCsvField(val: string): string {
@@ -230,10 +233,11 @@ export function exportMenuToCsv(
     sku?: string | null;
     barcode?: string | null;
     spiceLevel?: string | null;
+    imageUrl?: string | null;
   }>,
 ): string {
   const header =
-    "Category,Item Name,Price,Half Price,Food Type,Tax Rate %,Description,SKU,Barcode,Spicy Level\n";
+    "Category,Item Name,Price,Half Price,Food Type,Tax Rate %,Description,SKU,Barcode,Spicy Level,Image URL\n";
   const rows = items.map((it) => {
     const catName = it.category?.name ? escapeCsvField(it.category.name) : "General";
     const name = escapeCsvField(it.name || "");
@@ -246,8 +250,9 @@ export function exportMenuToCsv(
     const sku = it.sku ? escapeCsvField(it.sku) : "";
     const barcode = it.barcode ? escapeCsvField(it.barcode) : "";
     const spice = it.spiceLevel || "NONE";
+    const img = it.imageUrl ? escapeCsvField(it.imageUrl) : "";
 
-    return [catName, name, price, halfPrice, foodType, tax, desc, sku, barcode, spice].join(",");
+    return [catName, name, price, halfPrice, foodType, tax, desc, sku, barcode, spice, img].join(",");
   });
 
   return header + rows.join("\n");

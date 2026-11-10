@@ -171,7 +171,7 @@ export function BulkImportDialog({ branchId }: { branchId: string | null }) {
             <div className="flex flex-col">
               <span className="text-sm font-medium text-foreground">Need the spreadsheet template?</span>
               <span className="text-xs text-muted-foreground">
-                Headers: Category, Item Name, Price, Half Price, Food Type, Tax Rate %, Description, SKU
+                Headers: Category, Item Name, Price, Half Price, Food Type, Tax %, Description, SKU, Spicy Level, Image URL
               </span>
             </div>
             <Button
