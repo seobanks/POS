@@ -1,5 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { tmpdir } from 'node:os';
 import {
   BadRequestException,
   Injectable,
@@ -233,10 +234,29 @@ export class SubscriptionsService implements OnModuleInit {
 
   /**
    * Resolves the storage file path for persistent license configuration.
+   * Uses DATA_DIR or falls back to tmpdir() in serverless environments where /var/task is read-only.
    */
   private getStorageFilePath(): string {
-    const dataDir = process.env.DATA_DIR || path.join(process.cwd(), 'data');
-    return path.join(dataDir, 'license.json');
+    if (process.env.DATA_DIR) {
+      return path.join(process.env.DATA_DIR, 'license.json');
+    }
+    const defaultDir = path.join(process.cwd(), 'data');
+    try {
+      if (!fs.existsSync(defaultDir)) {
+        fs.mkdirSync(defaultDir, { recursive: true });
+      }
+      return path.join(defaultDir, 'license.json');
+    } catch {
+      const fallbackDir = path.join(tmpdir(), 'nodedr-data');
+      if (!fs.existsSync(fallbackDir)) {
+        try {
+          fs.mkdirSync(fallbackDir, { recursive: true });
+        } catch {
+          // ignore
+        }
+      }
+      return path.join(fallbackDir, 'license.json');
+    }
   }
 
   /**
