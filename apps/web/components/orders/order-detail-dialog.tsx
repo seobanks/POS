@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, MessageCircle, Pencil, Phone, X } from "lucide-react";
+import { Check, ChefHat, MessageCircle, Pencil, Phone, Printer, X } from "lucide-react";
 import { useState } from "react";
 import { StatusNote, useNoteToast } from "@/components/ui/status-note";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +13,7 @@ import { EditBillDialog } from "@/components/orders/edit-bill-dialog";
 import { ReasonDialog } from "@/components/orders/reason-dialog";
 import { hasPermission, useCurrentUser } from "@/hooks/use-auth";
 import { useAcceptOrder, useOrder, useRejectOrder } from "@/hooks/use-orders";
+import { openKotPrint, openReceiptPrint } from "@/lib/print";
 import { formatCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -213,6 +214,26 @@ export function OrderDetailDialog({
                     Cancelling needs a manager — ask one to cancel this order.
                   </p>
                 )}
+              </div>
+            )}
+            {order && branchId && (
+              <div className="flex gap-2 pt-2 border-t border-border">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => openReceiptPrint(order.id, branchId)}
+                >
+                  <Printer className="mr-1.5 h-4 w-4" />
+                  {order.status === "PAID" ? "Print Receipt" : "Print Bill"}
+                </Button>
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => openKotPrint(order.id, branchId)}
+                >
+                  <ChefHat className="mr-1.5 h-4 w-4" />
+                  Print KOT
+                </Button>
               </div>
             )}
             {order && (
