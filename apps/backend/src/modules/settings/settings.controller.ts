@@ -1,3 +1,4 @@
+import { readFileSync, unlinkSync } from 'node:fs';
 import {
   BadRequestException,
   Body,
@@ -67,11 +68,20 @@ export class SettingsController {
     if (!file) {
       throw new BadRequestException('No file uploaded');
     }
-    // See menu.controller.ts's uploadItemImage — same rationale for
-    // checking the bytes on disk before this URL is saved and served back
-    // publicly as the restaurant's branding.
     assertValidImageSignature(file.path);
-    return { url: `/api/uploads/${file.filename}` };
+    try {
+      const buffer = readFileSync(file.path);
+      const mimeType = file.mimetype || 'image/png';
+      const dataUrl = `data:${mimeType};base64,${buffer.toString('base64')}`;
+
+      try {
+        unlinkSync(file.path);
+      } catch {}
+
+      return { url: dataUrl };
+    } catch (err) {
+      return { url: `/api/uploads/${file.filename}` };
+    }
   }
 
   @Auth('settings.manage')

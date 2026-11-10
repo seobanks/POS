@@ -59,7 +59,7 @@ export const branchSettingsSchema = z.object({
     .string()
     .trim()
     .max(253)
-    .regex(/^[A-Za-z0-9.-]+$/, "Use an IP address or host name")
+    .refine((val) => !val || /^[A-Za-z0-9.-]+$/.test(val), "Use an IP address or host name")
     .nullable()
     .optional(),
   printerPort: z.number().int().min(1).max(65535).optional(),

@@ -269,23 +269,66 @@ function GeneralSettingsForm({
                   const file = e.target.files?.[0];
                   if (!file) return;
                   uploadLogo.mutate(file, {
-                    onSuccess: (res) => setLogoUrl(res.url),
+                    onSuccess: (res) => {
+                      setLogoUrl(res.url);
+                      updateRestaurant.mutate(
+                        {
+                          name,
+                          legalName: legalName || undefined,
+                          logoUrl: res.url,
+                          currency,
+                          timezone,
+                          upiVpa: upiVpa.trim() || null,
+                          upiPayeeName: upiPayeeName.trim() || null,
+                          loyaltyPointValue: Number(loyaltyPointValue) || 0,
+                          loyaltyEarnPerCurrency: Number(loyaltyEarnPerCurrency) || 1,
+                        },
+                        {
+                          onSuccess: () => toast.success("Logo uploaded and saved permanently!"),
+                          onError: (err) =>
+                            toast.error(err instanceof ApiError ? err.message : "Could not save logo"),
+                        },
+                      );
+                    },
                     onError: (err) =>
                       toast.error(err instanceof ApiError ? err.message : "Could not upload logo"),
                   });
                 }}
               />
               {logoUrl ? (
-                <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-border bg-secondary">
+                <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-border bg-secondary flex items-center justify-center">
                   {/* eslint-disable-next-line @next/next/no-img-element -- uploaded asset served from the backend, not a Next-optimizable remote source */}
-                  <img src={logoUrl} alt="" className="h-full w-full object-contain" />
+                  <img
+                    src={logoUrl}
+                    alt=""
+                    className="h-full w-full object-contain"
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).style.display = "none";
+                    }}
+                  />
                   <button
                     type="button"
                     onClick={() => {
                       setLogoUrl(null);
                       if (logoInputRef.current) logoInputRef.current.value = "";
+                      updateRestaurant.mutate(
+                        {
+                          name,
+                          legalName: legalName || undefined,
+                          logoUrl: null,
+                          currency,
+                          timezone,
+                          upiVpa: upiVpa.trim() || null,
+                          upiPayeeName: upiPayeeName.trim() || null,
+                          loyaltyPointValue: Number(loyaltyPointValue) || 0,
+                          loyaltyEarnPerCurrency: Number(loyaltyEarnPerCurrency) || 1,
+                        },
+                        {
+                          onSuccess: () => toast.success("Logo removed"),
+                        },
+                      );
                     }}
-                    className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-background/80 text-foreground"
+                    className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-background/80 text-foreground hover:bg-destructive hover:text-destructive-foreground transition-colors"
                     aria-label="Remove logo"
                   >
                     <X className="h-3 w-3" />

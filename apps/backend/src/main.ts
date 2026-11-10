@@ -174,6 +174,13 @@ async function bootstrap(): Promise<NestExpressApplication> {
     console.warn('Static assets init skipped:', err);
   }
 
+  // Graceful fallback for uploads missing on ephemeral serverless containers
+  app.use('/api/uploads', (_req: any, res: any) => {
+    res.setHeader('Content-Type', 'image/svg+xml');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    return res.status(200).send('<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>');
+  });
+
   if (
     process.env.NODE_ENV !== 'production' ||
     process.env.ENABLE_SWAGGER === 'true'

@@ -1,3 +1,4 @@
+import { readFileSync, unlinkSync } from 'node:fs';
 import {
   BadRequestException,
   Body,
@@ -189,12 +190,20 @@ export class MenuController {
     if (!file) {
       throw new BadRequestException('No file uploaded');
     }
-    // fileFilter (imageUploadOptions) only saw the client-declared
-    // filename/mimetype before any bytes were read — verify the bytes
-    // actually on disk match a real image signature before this URL is
-    // ever handed back to be saved on a menu item and served publicly.
     assertValidImageSignature(file.path);
-    return { url: `/api/uploads/${file.filename}` };
+    try {
+      const buffer = readFileSync(file.path);
+      const mimeType = file.mimetype || 'image/png';
+      const dataUrl = `data:${mimeType};base64,${buffer.toString('base64')}`;
+
+      try {
+        unlinkSync(file.path);
+      } catch {}
+
+      return { url: dataUrl };
+    } catch (err) {
+      return { url: `/api/uploads/${file.filename}` };
+    }
   }
 
   @Auth('menu.manage')

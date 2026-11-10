@@ -27,8 +27,9 @@ function RestaurantBrand() {
   const { branchId } = useBranch();
   const { data } = useSettings(branchId);
   const restaurant = data?.restaurant;
+  const [imgFailed, setImgFailed] = useState(false);
 
-  if (restaurant?.logoUrl) {
+  if (restaurant?.logoUrl && !imgFailed) {
     return (
       <>
         {/* eslint-disable-next-line @next/next/no-img-element -- uploaded asset served from the backend, not a Next-optimizable remote source */}
@@ -36,6 +37,7 @@ function RestaurantBrand() {
           src={restaurant.logoUrl}
           alt={restaurant.name}
           className="h-8 w-8 shrink-0 rounded-lg object-contain"
+          onError={() => setImgFailed(true)}
         />
         <span className="truncate text-sm font-semibold tracking-tight text-sidebar-foreground">
           {restaurant.name}
