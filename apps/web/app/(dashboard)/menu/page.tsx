@@ -64,8 +64,8 @@ export default function MenuPage() {
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
       const matchName = item.name.toLowerCase().includes(q);
-      const matchCat = item.category?.name?.toLowerCase().includes(q);
-      const matchSku = item.sku?.toLowerCase().includes(q);
+      const matchCat = Boolean(item.category?.name?.toLowerCase().includes(q));
+      const matchSku = Boolean(item.sku && item.sku.toLowerCase().includes(q));
       if (!matchName && !matchCat && !matchSku) return false;
     }
 

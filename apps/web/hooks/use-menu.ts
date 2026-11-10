@@ -39,6 +39,10 @@ export interface MenuItem {
   categoryId: string;
   stationId: string | null;
   name: string;
+  sku?: string | null;
+  barcode?: string | null;
+  description?: string | null;
+  spiceLevel?: string | null;
   imageUrl: string | null;
   price: string;
   halfPrice: string | null;
