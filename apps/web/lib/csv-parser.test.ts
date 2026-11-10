@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseCsvRows, parseMenuCsv, SAMPLE_MENU_CSV } from "./csv-parser.ts";
+import { parseCsvRows, parseMenuCsv, exportMenuToCsv, SAMPLE_MENU_CSV } from "./csv-parser.ts";
 
 test("parseCsvRows handles quotes and commas correctly", () => {
   const input = `Name,Price,Desc\n"Chicken, Tikka",250,"Juicy, tender chicken"`;
@@ -44,4 +44,33 @@ test("parseMenuCsv handles various veg/non-veg synonyms", () => {
   assert.equal(result.items[1].isVeg, false);
   assert.equal(result.items[2].isVeg, false);
   assert.equal(result.items[3].isVeg, true);
+});
+
+test("exportMenuToCsv produces valid CSV with escaped fields", () => {
+  const items = [
+    {
+      name: 'Paneer, "Special" Tikka',
+      category: { name: "Starters" },
+      price: 280,
+      halfPrice: 160,
+      isVeg: true,
+      taxRatePercent: 5,
+      description: "Rich marinade, cottage cheese",
+      sku: "PT-01",
+      barcode: "",
+      spiceLevel: "MEDIUM",
+    },
+  ];
+
+  const csv = exportMenuToCsv(items);
+  assert.match(csv, /^Category,Item Name,Price/);
+  assert.match(csv, /"Paneer, ""Special"" Tikka"/);
+  assert.match(csv, /"Rich marinade, cottage cheese"/);
+
+  // Round-trip parse test
+  const parsed = parseMenuCsv(csv);
+  assert.equal(parsed.items.length, 1);
+  assert.equal(parsed.items[0].name, 'Paneer, "Special" Tikka');
+  assert.equal(parsed.items[0].price, 280);
+  assert.equal(parsed.items[0].isVeg, true);
 });

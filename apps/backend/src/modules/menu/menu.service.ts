@@ -338,55 +338,91 @@ export class MenuService {
       }
     }
 
-    // 3. Upsert menu items
+    // 3. Pre-fetch all existing items in branch in ONE fast query
+    const existingItems = await this.prisma.menuItem.findMany({
+      where: { branchId },
+      select: {
+        id: true,
+        categoryId: true,
+        name: true,
+        description: true,
+        isVeg: true,
+        sku: true,
+        barcode: true,
+        spiceLevel: true,
+      },
+    });
+
+    const itemMap = new Map<string, (typeof existingItems)[0]>();
+    existingItems.forEach((it) =>
+      itemMap.set(`${it.categoryId}:${it.name.trim().toLowerCase()}`, it),
+    );
+
+    const toCreate: any[] = [];
+    const updateOps: any[] = [];
     let imported = 0;
+
     for (const item of items) {
       if (!item.name || !item.name.trim()) continue;
       const catKey = (item.category || 'General').trim().toLowerCase();
       const categoryId = categoryMap.get(catKey)!;
       const itemName = item.name.trim();
+      const itemKey = `${categoryId}:${itemName.toLowerCase()}`;
 
-      const existingItem = await this.prisma.menuItem.findFirst({
-        where: { branchId, categoryId, name: itemName },
-      });
-
+      const existingItem = itemMap.get(itemKey);
       const price = Number(item.price) || 0;
       const halfPrice = item.halfPrice ? Number(item.halfPrice) : null;
       const taxRatePercent =
         item.taxRatePercent !== undefined ? Number(item.taxRatePercent) : 5;
 
       if (existingItem) {
-        await this.prisma.menuItem.update({
-          where: { id: existingItem.id },
-          data: {
-            price,
-            halfPrice,
-            description: item.description || existingItem.description,
-            isVeg: item.isVeg !== undefined ? item.isVeg : existingItem.isVeg,
-            taxRatePercent,
-            sku: item.sku || existingItem.sku,
-            barcode: item.barcode || existingItem.barcode,
-            spiceLevel: item.spiceLevel || existingItem.spiceLevel,
-          },
-        });
+        updateOps.push(
+          this.prisma.menuItem.update({
+            where: { id: existingItem.id },
+            data: {
+              price,
+              halfPrice,
+              description: item.description ?? existingItem.description,
+              isVeg: item.isVeg !== undefined ? item.isVeg : existingItem.isVeg,
+              taxRatePercent,
+              sku: item.sku ?? existingItem.sku,
+              barcode: item.barcode ?? existingItem.barcode,
+              spiceLevel: (item.spiceLevel as any) ?? existingItem.spiceLevel,
+            },
+          }),
+        );
       } else {
-        await this.prisma.menuItem.create({
-          data: {
-            branchId,
-            categoryId,
-            name: itemName,
-            price,
-            halfPrice,
-            description: item.description || null,
-            isVeg: item.isVeg !== undefined ? item.isVeg : true,
-            taxRatePercent,
-            sku: item.sku || null,
-            barcode: item.barcode || null,
-            spiceLevel: item.spiceLevel || 'NONE',
-          },
+        toCreate.push({
+          branchId,
+          categoryId,
+          name: itemName,
+          price,
+          halfPrice,
+          description: item.description || null,
+          isVeg: item.isVeg !== undefined ? item.isVeg : true,
+          taxRatePercent,
+          sku: item.sku || null,
+          barcode: item.barcode || null,
+          spiceLevel: item.spiceLevel || 'NONE',
         });
       }
       imported++;
+    }
+
+    // High-performance batch create
+    if (toCreate.length > 0) {
+      await this.prisma.menuItem.createMany({
+        data: toCreate,
+      });
+    }
+
+    // High-performance chunked transactional updates
+    if (updateOps.length > 0) {
+      const CHUNK_SIZE = 50;
+      for (let i = 0; i < updateOps.length; i += CHUNK_SIZE) {
+        const chunk = updateOps.slice(i, i + CHUNK_SIZE);
+        await this.prisma.$transaction(chunk);
+      }
     }
 
     await this.audit.record({

@@ -210,3 +210,45 @@ export const SAMPLE_MENU_CSV = [
   "Desserts,Gulab Jamun,120,,Veg,5,Warm milk dumplings soaked in cardamom sugar syrup,GJ-01,,NONE",
   "Beverages,Sweet Lassi,90,,Veg,5,Traditional churned sweet yogurt drink,SL-01,,NONE",
 ].join("\n");
+
+function escapeCsvField(val: string): string {
+  if (val.includes(",") || val.includes('"') || val.includes("\n") || val.includes("\r")) {
+    return `"${val.replace(/"/g, '""')}"`;
+  }
+  return val;
+}
+
+export function exportMenuToCsv(
+  items: Array<{
+    name: string;
+    category?: { name: string } | null;
+    price: string | number;
+    halfPrice?: string | number | null;
+    isVeg?: boolean;
+    taxRatePercent?: string | number;
+    description?: string | null;
+    sku?: string | null;
+    barcode?: string | null;
+    spiceLevel?: string | null;
+  }>,
+): string {
+  const header =
+    "Category,Item Name,Price,Half Price,Food Type,Tax Rate %,Description,SKU,Barcode,Spicy Level\n";
+  const rows = items.map((it) => {
+    const catName = it.category?.name ? escapeCsvField(it.category.name) : "General";
+    const name = escapeCsvField(it.name || "");
+    const price = it.price !== undefined && it.price !== null ? it.price : "";
+    const halfPrice = it.halfPrice !== undefined && it.halfPrice !== null ? it.halfPrice : "";
+    const foodType = it.isVeg ? "Veg" : "Non-Veg";
+    const tax =
+      it.taxRatePercent !== undefined && it.taxRatePercent !== null ? it.taxRatePercent : "5";
+    const desc = it.description ? escapeCsvField(it.description) : "";
+    const sku = it.sku ? escapeCsvField(it.sku) : "";
+    const barcode = it.barcode ? escapeCsvField(it.barcode) : "";
+    const spice = it.spiceLevel || "NONE";
+
+    return [catName, name, price, halfPrice, foodType, tax, desc, sku, barcode, spice].join(",");
+  });
+
+  return header + rows.join("\n");
+}

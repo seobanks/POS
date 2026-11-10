@@ -1,6 +1,6 @@
 "use client";
 
-import { EyeOff, Layers, Leaf, Pencil, Trash2 } from "lucide-react";
+import { Download, EyeOff, Layers, Leaf, Pencil, Search, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { AddCategoryDialog } from "@/components/menu/add-category-dialog";
@@ -11,6 +11,7 @@ import { EditCategoryDialog } from "@/components/menu/edit-category-dialog";
 import { EditItemDialog } from "@/components/menu/edit-item-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { ResponsiveTabs } from "@/components/ui/nav-picker";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -33,6 +34,7 @@ import {
   type MenuItem,
 } from "@/hooks/use-menu";
 import { ApiError } from "@/lib/api";
+import { exportMenuToCsv } from "@/lib/csv-parser";
 import { formatCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -50,8 +52,46 @@ export default function MenuPage() {
   const [comboItem, setComboItem] = useState<MenuItem | null>(null);
   const [editingCategory, setEditingCategory] = useState<MenuCategory | null>(null);
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [vegFilter, setVegFilter] = useState<"all" | "veg" | "non-veg">("all");
 
   const selectedCategory = categories?.find((c) => c.id === selectedCategoryId);
+
+  const filteredItems = (items ?? []).filter((item) => {
+    if (vegFilter === "veg" && !item.isVeg) return false;
+    if (vegFilter === "non-veg" && item.isVeg) return false;
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      const matchName = item.name.toLowerCase().includes(q);
+      const matchCat = item.category?.name?.toLowerCase().includes(q);
+      const matchSku = item.sku?.toLowerCase().includes(q);
+      if (!matchName && !matchCat && !matchSku) return false;
+    }
+
+    return true;
+  });
+
+  const handleExportCsv = () => {
+    const listToExport = allItems && allItems.length > 0 ? allItems : items || [];
+    if (listToExport.length === 0) {
+      toast.error("No menu items to export");
+      return;
+    }
+
+    const csvContent = exportMenuToCsv(listToExport);
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    const dateStr = new Date().toISOString().split("T")[0];
+    link.setAttribute("download", `menu_export_${dateStr}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast.success(`Exported ${listToExport.length} menu items to CSV`);
+  };
 
   const onDeleteCategory = (category: MenuCategory) => {
     if (!confirm(`Delete the "${category.name}" category? This cannot be undone.`)) return;
@@ -193,15 +233,92 @@ export default function MenuPage() {
         </Card>
 
         <Card className="flex flex-col gap-4 p-4 sm:p-6">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-[18px] font-medium text-foreground">Items</h2>
-            {canManage && (
-              <div className="flex items-center gap-2">
-                <BulkImportDialog branchId={branchId} />
-                <AddItemDialog branchId={branchId} categories={categories ?? []} />
-              </div>
-            )}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <h2 className="text-[18px] font-medium text-foreground">Items</h2>
+              {items && items.length > 0 && (
+                <Badge variant="secondary" className="text-xs">
+                  {filteredItems.length} {filteredItems.length === 1 ? "item" : "items"}
+                  {filteredItems.length !== items.length && ` of ${items.length}`}
+                </Badge>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleExportCsv}
+                className="gap-1.5"
+                title="Export menu items to CSV"
+              >
+                <Download className="h-4 w-4" />
+                <span>Export CSV</span>
+              </Button>
+              {canManage && (
+                <>
+                  <BulkImportDialog branchId={branchId} />
+                  <AddItemDialog branchId={branchId} categories={categories ?? []} />
+                </>
+              )}
+            </div>
           </div>
+
+          {/* Search & Dietary Filters Toolbar */}
+          {items && items.length > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 pb-3">
+              <div className="relative flex-1 min-w-[200px] max-w-sm">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  type="text"
+                  placeholder="Search dishes or SKU..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-8 h-9 text-xs sm:text-sm"
+                />
+              </div>
+
+              <div className="flex items-center rounded-lg border border-border p-0.5 bg-muted/40 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setVegFilter("all")}
+                  className={cn(
+                    "px-2.5 py-1 rounded-md font-medium transition-colors cursor-pointer",
+                    vegFilter === "all"
+                      ? "bg-background text-foreground shadow-xs"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  All
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setVegFilter("veg")}
+                  className={cn(
+                    "flex items-center gap-1 px-2.5 py-1 rounded-md font-medium transition-colors cursor-pointer",
+                    vegFilter === "veg"
+                      ? "bg-background text-emerald-600 dark:text-emerald-400 shadow-xs"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  <Leaf className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                  Veg
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setVegFilter("non-veg")}
+                  className={cn(
+                    "flex items-center gap-1 px-2.5 py-1 rounded-md font-medium transition-colors cursor-pointer",
+                    vegFilter === "non-veg"
+                      ? "bg-background text-red-600 dark:text-red-400 shadow-xs"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  <span className="h-2 w-2 rounded-full bg-red-600 dark:bg-red-400" />
+                  Non-Veg
+                </button>
+              </div>
+            </div>
+          )}
 
           {itemsLoading ? (
             <div className="flex flex-col gap-2">
@@ -210,9 +327,26 @@ export default function MenuPage() {
               ))}
             </div>
           ) : items && items.length > 0 ? (
+            filteredItems.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-10 text-center gap-2">
+                <p className="text-sm text-muted-foreground">
+                  No menu items found matching "{searchQuery || vegFilter}".
+                </p>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setSearchQuery("");
+                    setVegFilter("all");
+                  }}
+                >
+                  Clear search & filters
+                </Button>
+              </div>
+            ) : (
             <>
             <ul className="flex flex-col divide-y divide-border md:hidden">
-              {items.map((item) => (
+              {filteredItems.map((item) => (
                 <li key={item.id} className="flex flex-col gap-2 py-3 first:pt-0">
                   <div className="flex items-start gap-3">
                     {item.imageUrl ? (
@@ -275,7 +409,7 @@ export default function MenuPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {items.map((item) => (
+                {filteredItems.map((item) => (
                   <TableRow key={item.id}>
                     <TableCell className="font-medium text-foreground">
                       <div className="flex items-center gap-3">
@@ -357,6 +491,7 @@ export default function MenuPage() {
             </Table>
             </div>
             </>
+            )
           ) : (
             <div className="flex flex-col items-center gap-2 py-16 text-center">
               <p className="text-sm font-medium text-foreground">No items yet</p>
