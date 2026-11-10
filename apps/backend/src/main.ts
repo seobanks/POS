@@ -266,6 +266,31 @@ export default async function handler(req: any, res: any) {
     return;
   }
 
+  // Gracefully handle /socket.io requests on Vercel Serverless
+  if (url.startsWith('/socket.io')) {
+    const corsOrigin = process.env.CORS_ORIGIN || req.headers?.origin || '*';
+    res.setHeader('Access-Control-Allow-Origin', corsOrigin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+    if (req.method === 'OPTIONS') {
+      res.statusCode = 204;
+      res.end();
+      return;
+    }
+    res.setHeader('Content-Type', 'application/json');
+    res.statusCode = 404;
+    res.end(
+      JSON.stringify({
+        statusCode: 404,
+        error: 'Not Found',
+        message:
+          'WebSocket/Socket.IO gateway is unavailable on Vercel Serverless. To enable realtime push, host the backend or a WebSocket proxy on a persistent server (Docker, Railway, Render) and set NEXT_PUBLIC_WS_URL.',
+      }),
+    );
+    return;
+  }
+
   try {
     const app = await bootstrap();
     const server = app.getHttpAdapter().getInstance();

@@ -8,9 +8,30 @@
 // server address, with no per-deployment env var required. Shared by every
 // socket.io-client consumer (use-realtime.ts, notification-bell.tsx,
 // use-kds-sound.ts) so the fallback logic only lives in one place.
-export function resolveWsUrl(): string {
-  if (process.env.NEXT_PUBLIC_WS_URL) return process.env.NEXT_PUBLIC_WS_URL;
+export function resolveWsUrl(): string | null {
+  if (process.env.NEXT_PUBLIC_ENABLE_REALTIME === "false") return null;
+
+  if (process.env.NEXT_PUBLIC_WS_URL) {
+    const custom = process.env.NEXT_PUBLIC_WS_URL.trim();
+    if (custom === "false" || custom === "disabled" || custom === "none" || custom === "off") {
+      return null;
+    }
+    return custom;
+  }
+
   if (typeof window !== "undefined") {
+    // Vercel serverless deployments do not host a persistent WebSocket/Socket.io server.
+    // In Vercel environments (detected via hostname *.vercel.app or build-time NEXT_PUBLIC_IS_VERCEL),
+    // unless NEXT_PUBLIC_WS_URL is explicitly set to an external persistent backend,
+    // disable WebSocket connection to prevent infinite 404 polling loops.
+    // The POS automatically and safely falls back to TanStack Query polling (10-20s intervals).
+    if (
+      process.env.NEXT_PUBLIC_IS_VERCEL === "1" ||
+      window.location.hostname.endsWith(".vercel.app")
+    ) {
+      return null;
+    }
+
     // Always this same origin, over HTTP or HTTPS: next.config.ts proxies
     // /socket.io to the backend, and in the shipped compose stack the
     // backend's own port is NOT published, so the old http-> ":4001"
@@ -18,5 +39,10 @@ export function resolveWsUrl(): string {
     // kitchen tablet's live ticket updates silently fell back to polling).
     return window.location.origin;
   }
+
+  if (process.env.NEXT_PUBLIC_IS_VERCEL === "1") {
+    return null;
+  }
+
   return "http://localhost:4001";
 }
