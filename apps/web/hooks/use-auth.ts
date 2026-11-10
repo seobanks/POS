@@ -30,6 +30,7 @@ export function useRegister() {
   return useMutation({
     mutationFn: (dto: RegisterDto) => api.post<{ user: SessionUser }>("/auth/register", dto),
     onSuccess: (data) => {
+      queryClient.removeQueries({ predicate: (q) => q.queryKey[0] !== "auth" });
       queryClient.setQueryData(["auth", "me"], data);
     },
   });

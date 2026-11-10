@@ -4,9 +4,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { registerSchema, type RegisterDto } from "@nodedr-restaurant/types";
 import { motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
-import { toast } from "sonner";
+import { AlertCircle, Loader2 } from "lucide-react";
 import { Logo } from "@/components/layout/logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,22 +16,51 @@ import { useRegister } from "@/hooks/use-auth";
 import { ApiError } from "@/lib/api";
 
 export default function SignupPage() {
-  const router = useRouter();
   const register = useRegister();
+  const [error, setError] = useState<string | null>(null);
   const prefersReducedMotion = useReducedMotion();
+
   const {
     register: field,
     handleSubmit,
     formState: { errors },
-  } = useForm<RegisterDto>({ resolver: zodResolver(registerSchema) });
+  } = useForm<RegisterDto>({
+    resolver: zodResolver(registerSchema),
+    defaultValues: {
+      restaurantName: "",
+      branchName: "Main Branch",
+      ownerName: "",
+      email: "",
+      password: "",
+    },
+  });
 
   const onSubmit = (dto: RegisterDto) => {
+    setError(null);
     register.mutate(dto, {
-      onSuccess: () => router.push("/dashboard"),
+      onSuccess: () => {
+        // Force full refresh to /dashboard so fresh session cookies and tenant context load cleanly
+        window.location.href = "/dashboard";
+      },
       onError: (err) => {
-        toast.error(err instanceof ApiError ? err.message : "Something went wrong");
+        if (err instanceof ApiError && err.status >= 500) {
+          setError("The server encountered an issue right now. Please try again in a moment.");
+        } else if (err instanceof ApiError) {
+          setError(err.message);
+        } else {
+          setError("Could not connect to the server. Please check your internet connection.");
+        }
       },
     });
+  };
+
+  const onInvalid = (fieldErrors: typeof errors) => {
+    const firstKey = Object.keys(fieldErrors)[0] as keyof typeof fieldErrors;
+    if (firstKey && fieldErrors[firstKey]?.message) {
+      setError(fieldErrors[firstKey]!.message!);
+    } else {
+      setError("Please fill out all required fields and ensure the password is at least 8 characters.");
+    }
   };
 
   return (
@@ -56,7 +85,7 @@ export default function SignupPage() {
           <p className="text-sm text-muted-foreground">Set up your restaurant</p>
         </div>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5">
+        <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="flex flex-col gap-5">
           <div className="flex flex-col gap-2">
             <Label htmlFor="restaurantName">Restaurant name</Label>
             <Input
@@ -75,7 +104,6 @@ export default function SignupPage() {
             <Input
               id="branchName"
               placeholder="Main Branch"
-              defaultValue="Main Branch"
               {...field("branchName")}
             />
             {errors.branchName && (
@@ -112,7 +140,6 @@ export default function SignupPage() {
             <Label htmlFor="password">Password</Label>
             <PasswordInput
               id="password"
-              
               autoComplete="new-password"
               placeholder="At least 8 characters"
               {...field("password")}
@@ -122,8 +149,25 @@ export default function SignupPage() {
             )}
           </div>
 
+          {error && (
+            <div
+              role="alert"
+              className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2.5 text-sm text-destructive"
+            >
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
           <Button type="submit" className="mt-2 h-11" disabled={register.isPending}>
-            {register.isPending ? "Creating your account…" : "Create account"}
+            {register.isPending ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Creating your account…
+              </>
+            ) : (
+              "Create account"
+            )}
           </Button>
         </form>
 
