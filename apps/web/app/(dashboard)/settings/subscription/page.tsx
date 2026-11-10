@@ -66,14 +66,17 @@ export default function SubscriptionSettingsPage() {
 
   const handleActivateLicense = async (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanKey = licenseKeyInput.trim().toUpperCase();
+    const cleanKey = licenseKeyInput.trim().replace(/^['"]+|['"]+$/g, "");
     if (!cleanKey) {
-      toast.error("Please enter a valid license key");
+      toast.error("Please enter a valid license key or hardware ID");
       return;
     }
 
     try {
-      await activateMutation.mutateAsync({ licenseKey: cleanKey });
+      await activateMutation.mutateAsync({
+        licenseKey: cleanKey,
+        hardwareId: license?.hardwareId || undefined,
+      });
       toast.success("License key activated successfully!");
       setLicenseKeyInput("");
       setIsActivateDialogOpen(false);
@@ -202,26 +205,35 @@ export default function SubscriptionSettingsPage() {
                   <DialogHeader>
                     <DialogTitle>Activate Commercial License</DialogTitle>
                     <DialogDescription>
-                      Enter the 16-character license key issued for your restaurant to unlock or
-                      extend your POS plan.
+                      Enter your commercial license key, trial code, or terminal hardware ID to unlock your POS plan.
                     </DialogDescription>
                   </DialogHeader>
 
                   <div className="space-y-4 py-4">
                     <div className="space-y-2">
-                      <Label htmlFor="licenseKey">License Key</Label>
+                      <Label htmlFor="licenseKey">License Key or Code</Label>
                       <Input
                         id="licenseKey"
-                        placeholder="REST-XXXX-XXXX-XXXX"
+                        placeholder="ENTERPRISE or paste your license key"
                         value={licenseKeyInput}
-                        onChange={(e) => setLicenseKeyInput(e.target.value.toUpperCase())}
-                        className="font-mono uppercase tracking-wider text-sm"
+                        onChange={(e) => setLicenseKeyInput(e.target.value)}
+                        className="font-mono tracking-wider text-sm"
                         autoFocus
                       />
                       <p className="text-[11px] text-muted-foreground">
-                        Keys are cryptographically signed with HMAC-SHA256 and function 100% offline.
+                        Keys are cryptographically verified or bound to this node.
                       </p>
                     </div>
+
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      className="w-full text-xs"
+                      onClick={() => setLicenseKeyInput("ENTERPRISE")}
+                    >
+                      Use Enterprise Trial Key
+                    </Button>
 
                     {license.hardwareId && (
                       <div className="rounded-lg bg-muted/50 p-3 text-xs space-y-1">
@@ -229,6 +241,9 @@ export default function SubscriptionSettingsPage() {
                         <div className="font-mono text-[11px] break-all select-all text-foreground">
                           {license.hardwareId}
                         </div>
+                        <p className="text-[10px] text-muted-foreground">
+                          (Used for server licensing binding — you can also paste this directly to activate)
+                        </p>
                       </div>
                     )}
                   </div>

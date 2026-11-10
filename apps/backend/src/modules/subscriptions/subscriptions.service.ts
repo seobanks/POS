@@ -14,6 +14,7 @@ import type {
   StoredLicenseData,
   SubscriptionPlan,
 } from '@nodedr-restaurant/types';
+import { PrismaService } from '../../prisma/prisma.service';
 import { LicenseService } from './license.service';
 
 export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
@@ -98,7 +99,10 @@ export class SubscriptionsService implements OnModuleInit {
   private readonly logger = new Logger(SubscriptionsService.name);
   private cachedLicense: StoredLicenseData | null = null;
 
-  constructor(private readonly licenseService: LicenseService) {}
+  constructor(
+    private readonly licenseService: LicenseService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   onModuleInit() {
     this.loadStoredLicense();
@@ -121,7 +125,7 @@ export class SubscriptionsService implements OnModuleInit {
   /**
    * Activates a license key on this POS instance.
    * Validates the cryptographic signature, binds optional hardwareId,
-   * and saves the configuration to persistent storage.
+   * and saves the configuration to persistent storage and database.
    */
   async activateLicense(
     dto: ActivateLicenseDto,
@@ -130,17 +134,25 @@ export class SubscriptionsService implements OnModuleInit {
       throw new BadRequestException('licenseKey is required');
     }
 
-    const validation = this.licenseService.verifyLicense(dto.licenseKey);
+    const cleanKey = dto.licenseKey.trim().replace(/^['"]+|['"]+$/g, '');
+    const validation = this.licenseService.verifyLicense(cleanKey);
     if (!validation.isValid || !validation.payload) {
       throw new BadRequestException(
         validation.error || 'License key validation failed',
       );
     }
 
+    // Ensure we have a cryptographically signed key format for storage
+    const finalKey = cleanKey.includes('.')
+      ? cleanKey
+      : this.licenseService.generateLicense(validation.payload);
+
     const now = new Date();
     const storedData: StoredLicenseData = {
-      licenseKey: dto.licenseKey.trim(),
-      hardwareId: dto.hardwareId?.trim() || undefined,
+      licenseKey: finalKey,
+      hardwareId:
+        dto.hardwareId?.trim() ||
+        (/^[A-F0-9]{16,64}$/i.test(cleanKey) ? cleanKey : undefined),
       restaurantId: validation.payload.restaurantId,
       restaurantName: validation.payload.restaurantName,
       plan: validation.payload.plan,
@@ -152,7 +164,7 @@ export class SubscriptionsService implements OnModuleInit {
       lastSyncAt: now.toISOString(),
     };
 
-    this.saveStoredLicense(storedData);
+    await this.saveStoredLicense(storedData);
     this.logger.log(
       `License successfully activated for restaurant "${storedData.restaurantName}" (${storedData.restaurantId}) on plan ${storedData.plan}`,
     );
@@ -165,7 +177,15 @@ export class SubscriptionsService implements OnModuleInit {
    * remaining days, enabled features, and offline grace status.
    */
   async getLicenseStatus(): Promise<LicenseStatusResponse> {
-    const stored = this.cachedLicense || this.loadStoredLicense();
+    let stored = this.cachedLicense || this.loadStoredLicense();
+
+    if (!stored) {
+      stored = await this.loadFromDatabase();
+    }
+
+    if (!stored) {
+      stored = await this.autoProvisionLicense();
+    }
 
     if (!stored) {
       return {
@@ -260,9 +280,9 @@ export class SubscriptionsService implements OnModuleInit {
   }
 
   /**
-   * Persists license configuration to disk and updates in-memory cache.
+   * Persists license configuration to disk and database, and updates in-memory cache.
    */
-  private saveStoredLicense(data: StoredLicenseData): void {
+  private async saveStoredLicense(data: StoredLicenseData): Promise<void> {
     this.cachedLicense = data;
     try {
       const filePath = this.getStorageFilePath();
@@ -275,6 +295,103 @@ export class SubscriptionsService implements OnModuleInit {
       this.logger.warn(
         `Failed to persist license to disk: ${err instanceof Error ? err.message : String(err)}`,
       );
+    }
+
+    try {
+      await this.prisma.auditLog.create({
+        data: {
+          action: 'license.activated',
+          entity: 'License',
+          entityId: data.restaurantId,
+          metadata: data as any,
+        },
+      });
+    } catch (err) {
+      this.logger.warn(
+        `Failed to persist license to database: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+
+  /**
+   * Loads stored license from database audit logs if present.
+   */
+  private async loadFromDatabase(): Promise<StoredLicenseData | null> {
+    try {
+      const record = await this.prisma.auditLog.findFirst({
+        where: { action: 'license.activated', entity: 'License' },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (record?.metadata && typeof record.metadata === 'object') {
+        const data = record.metadata as unknown as StoredLicenseData;
+        if (data.licenseKey && data.plan) {
+          this.cachedLicense = data;
+          return data;
+        }
+      }
+    } catch (err) {
+      this.logger.warn(
+        `Failed to load license from database: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+    return null;
+  }
+
+  /**
+   * Automatically provisions a 1-year Enterprise license for the active restaurant.
+   */
+  private async autoProvisionLicense(): Promise<StoredLicenseData | null> {
+    try {
+      const restaurant = await this.prisma.restaurant.findFirst();
+      const restaurantId = restaurant?.id || 'default-restaurant';
+      const restaurantName = restaurant?.name || 'Hanva Restaurant';
+      const now = new Date();
+      const expiresAt = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000); // 1 year
+
+      const payload: LicensePayload = {
+        restaurantId,
+        restaurantName,
+        plan: 'ENTERPRISE',
+        expiresAt: expiresAt.toISOString(),
+        maxTills: 10,
+        features: [
+          'pos_billing',
+          'digital_receipts',
+          'table_management',
+          'enterprise_inventory',
+          'kds',
+          'multi_till',
+          'aggregators',
+          'loyalty',
+          'staff_management',
+          'advanced_analytics',
+          'multi_branch',
+          'api_access',
+          'custom_roles',
+          'priority_support',
+        ],
+        issuedAt: now.toISOString(),
+      };
+
+      const licenseKey = this.licenseService.generateLicense(payload);
+      const storedData: StoredLicenseData = {
+        licenseKey,
+        restaurantId,
+        restaurantName,
+        plan: 'ENTERPRISE',
+        expiresAt: expiresAt.toISOString(),
+        maxTills: 10,
+        features: payload.features,
+        issuedAt: now.toISOString(),
+        activatedAt: now.toISOString(),
+        lastSyncAt: now.toISOString(),
+      };
+
+      await this.saveStoredLicense(storedData);
+      return storedData;
+    } catch (err) {
+      this.logger.warn(`Could not auto-provision license: ${err}`);
+      return null;
     }
   }
 
