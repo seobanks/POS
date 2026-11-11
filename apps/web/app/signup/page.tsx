@@ -1,6 +1,5 @@
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
 import { registerSchema, type RegisterDto } from "@nodedr-restaurant/types";
 import { motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
@@ -14,6 +13,7 @@ import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { useRegister } from "@/hooks/use-auth";
 import { ApiError } from "@/lib/api";
+import { safeZodResolver } from "@/lib/safe-zod-resolver";
 
 export default function SignupPage() {
   const register = useRegister();
@@ -25,7 +25,7 @@ export default function SignupPage() {
     handleSubmit,
     formState: { errors },
   } = useForm<RegisterDto>({
-    resolver: zodResolver(registerSchema),
+    resolver: safeZodResolver(registerSchema),
     defaultValues: {
       restaurantName: "",
       branchName: "Main Branch",

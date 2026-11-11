@@ -1,13 +1,12 @@
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
 import { loginSchema, type LoginDto } from "@nodedr-restaurant/types";
 import { motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Loader2 } from "lucide-react";
 import { Logo } from "@/components/layout/logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +14,7 @@ import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { useLogin } from "@/hooks/use-auth";
 import { ApiError } from "@/lib/api";
+import { safeZodResolver } from "@/lib/safe-zod-resolver";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -28,12 +28,14 @@ export default function LoginPage() {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm<LoginDto>({ resolver: zodResolver(loginSchema) });
+  } = useForm<LoginDto>({ resolver: safeZodResolver(loginSchema) });
 
   const onSubmit = (dto: LoginDto) => {
     setError(null);
     login.mutate(dto, {
-      onSuccess: () => router.push("/dashboard"),
+      onSuccess: () => {
+        window.location.href = "/dashboard";
+      },
       onError: (err) => {
         if (err instanceof ApiError && err.message === "TWO_FACTOR_REQUIRED") {
           setNeedsCode(true);
@@ -48,6 +50,15 @@ export default function LoginPage() {
         }
       },
     });
+  };
+
+  const onInvalid = (fieldErrors: typeof errors) => {
+    const firstKey = Object.keys(fieldErrors)[0] as keyof typeof fieldErrors;
+    if (firstKey && fieldErrors[firstKey]?.message) {
+      setError(fieldErrors[firstKey]!.message!);
+    } else {
+      setError("Please check your email and password.");
+    }
   };
 
   return (
@@ -72,7 +83,7 @@ export default function LoginPage() {
           <p className="text-sm text-muted-foreground">Sign in to manage your restaurant</p>
         </div>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-5">
+        <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="flex flex-col gap-5">
           <div className="flex flex-col gap-2">
             <Label htmlFor="email">Email</Label>
             <Input
@@ -139,7 +150,14 @@ export default function LoginPage() {
           )}
 
           <Button type="submit" className="mt-2 h-12 text-base" disabled={login.isPending}>
-            {login.isPending ? "Signing in…" : "Sign in"}
+            {login.isPending ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Signing in…
+              </>
+            ) : (
+              "Sign in"
+            )}
           </Button>
         </form>
 
