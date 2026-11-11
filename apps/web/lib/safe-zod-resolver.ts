@@ -1,24 +1,10 @@
-import type { FieldErrors, FieldValues, Resolver } from "react-hook-form";
+import type { FieldErrors, FieldValues, Resolver, ResolverResult } from "react-hook-form";
 
-export interface ZodIssueLike {
-  path?: (string | number)[];
-  message?: string;
-  code?: string;
-}
-
-export interface ZodErrorLike {
-  issues?: ZodIssueLike[];
-  errors?: ZodIssueLike[];
-  message?: string;
-}
-
-export interface ZodLikeSchema<T> {
-  safeParse: (
-    input: unknown,
-  ) => { success: true; data: T } | { success: false; error: ZodErrorLike };
-  safeParseAsync?: (
-    input: unknown,
-  ) => Promise<{ success: true; data: T } | { success: false; error: ZodErrorLike }>;
+export interface ZodLikeSchema {
+  safeParse?: (input: unknown) => any;
+  safeParseAsync?: (input: unknown) => Promise<any>;
+  parse?: (input: unknown) => any;
+  parseAsync?: (input: unknown) => Promise<any>;
 }
 
 /**
@@ -26,24 +12,26 @@ export interface ZodLikeSchema<T> {
  * Works seamlessly with Zod 3 and Zod 4 across bundlers, preventing unhandled
  * promise rejections (`Uncaught (in promise) ZodError`) when validation fails.
  */
-export function safeZodResolver<TFieldValues extends FieldValues>(
-  schema: ZodLikeSchema<TFieldValues>,
+export function safeZodResolver<TFieldValues extends FieldValues = FieldValues>(
+  schema: ZodLikeSchema | any,
 ): Resolver<TFieldValues> {
-  return async (values) => {
+  return async (values: TFieldValues): Promise<ResolverResult<TFieldValues>> => {
     try {
       const result =
-        typeof schema.safeParseAsync === "function"
+        typeof schema?.safeParseAsync === "function"
           ? await schema.safeParseAsync(values)
-          : schema.safeParse(values);
+          : typeof schema?.safeParse === "function"
+            ? schema.safeParse(values)
+            : { success: true, data: values };
 
-      if (result.success) {
+      if (result?.success) {
         return {
           values: result.data as TFieldValues,
           errors: {},
         };
       }
 
-      const issues = result.error?.issues ?? result.error?.errors ?? [];
+      const issues = result?.error?.issues ?? result?.error?.errors ?? [];
       const errors: FieldErrors<TFieldValues> = {};
 
       if (Array.isArray(issues) && issues.length > 0) {
@@ -60,7 +48,7 @@ export function safeZodResolver<TFieldValues extends FieldValues>(
             };
           }
         }
-      } else if (result.error?.message) {
+      } else if (result?.error?.message) {
         (errors as Record<string, any>).root = {
           type: "validation",
           message: result.error.message,
@@ -68,7 +56,7 @@ export function safeZodResolver<TFieldValues extends FieldValues>(
       }
 
       return {
-        values: {} as TFieldValues,
+        values: {} as Record<string, never>,
         errors,
       };
     } catch (caught: any) {
@@ -98,7 +86,7 @@ export function safeZodResolver<TFieldValues extends FieldValues>(
       }
 
       return {
-        values: {} as TFieldValues,
+        values: {} as Record<string, never>,
         errors,
       };
     }
