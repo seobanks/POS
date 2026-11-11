@@ -12,7 +12,7 @@ export const restaurantSettingsSchema = z.object({
   // Shown in place of the product logo in the app shell header and on the
   // login screen once set. Square, ~256x256px+ PNG/SVG with a transparent
   // background reads best in that slot — see the settings page hint text.
-  logoUrl: z.string().max(2048).optional().nullable(),
+  logoUrl: z.string().optional().nullable(),
   currency: z.string().optional(),
   timezone: z.string().optional(),
   // UPI id such as "name@okbank" (VPA format per NPCI: handle@psp).

@@ -32,6 +32,7 @@ import { hasPermission, useCurrentUser } from "@/hooks/use-auth";
 import { StockTrackingSection } from "@/components/menu/stock-tracking-section";
 import { useSettings } from "@/hooks/use-settings";
 import { ApiError } from "@/lib/api";
+import { compressImage } from "@/lib/image-compress";
 
 // Mounted only while a specific item is being edited (see MenuPage), keyed
 // by item.id — same pattern as EditRoleDialog/EditCategoryDialog.
@@ -65,11 +66,12 @@ export function EditItemDialog({
   const priceLabel =
     settings?.branch.taxMode === "EXCLUSIVE" ? "Price (excl. tax)" : "Price (incl. tax)";
 
-  const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setImagePreview(URL.createObjectURL(file));
-    uploadImage.mutate(file, {
+    const compressed = await compressImage(file, { maxDimension: 600 });
+    setImagePreview(URL.createObjectURL(compressed));
+    uploadImage.mutate(compressed, {
       onSuccess: (res) => setImageUrl(res.url),
       onError: (err) => {
         toast.error(err instanceof ApiError ? err.message : "Could not upload image");

@@ -37,6 +37,7 @@ import {
   type RestaurantSettings,
 } from "@/hooks/use-settings";
 import { ApiError } from "@/lib/api";
+import { compressImage } from "@/lib/image-compress";
 
 export default function SettingsPage() {
   const { branchId } = useBranch();
@@ -265,10 +266,11 @@ function GeneralSettingsForm({
                 type="file"
                 accept="image/png,image/jpeg,image/webp,image/gif"
                 className="hidden"
-                onChange={(e) => {
+                onChange={async (e) => {
                   const file = e.target.files?.[0];
                   if (!file) return;
-                  uploadLogo.mutate(file, {
+                  const compressed = await compressImage(file, { maxDimension: 400 });
+                  uploadLogo.mutate(compressed, {
                     onSuccess: (res) => {
                       setLogoUrl(res.url);
                       updateRestaurant.mutate(

@@ -30,6 +30,7 @@ import {
 } from "@/hooks/use-menu";
 import { useSettings } from "@/hooks/use-settings";
 import { ApiError } from "@/lib/api";
+import { compressImage } from "@/lib/image-compress";
 
 export function AddItemDialog({
   branchId,
@@ -69,11 +70,12 @@ export function AddItemDialog({
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setImagePreview(URL.createObjectURL(file));
-    uploadImage.mutate(file, {
+    const compressed = await compressImage(file, { maxDimension: 600 });
+    setImagePreview(URL.createObjectURL(compressed));
+    uploadImage.mutate(compressed, {
       onSuccess: (res) => setImageUrl(res.url),
       onError: (err) => {
         toast.error(err instanceof ApiError ? err.message : "Could not upload image");

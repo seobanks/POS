@@ -64,24 +64,38 @@ export class SettingsController {
   @Auth('settings.manage')
   @Post('restaurant/logo')
   @UseInterceptors(FileInterceptor('file', imageUploadOptions))
-  uploadRestaurantLogo(@UploadedFile() file?: Express.Multer.File) {
+  async uploadRestaurantLogo(
+    @CurrentUser() user: SessionUser,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
     if (!file) {
       throw new BadRequestException('No file uploaded');
     }
     assertValidImageSignature(file.path);
+    let url: string;
     try {
       const buffer = readFileSync(file.path);
       const mimeType = file.mimetype || 'image/png';
-      const dataUrl = `data:${mimeType};base64,${buffer.toString('base64')}`;
+      url = `data:${mimeType};base64,${buffer.toString('base64')}`;
 
       try {
         unlinkSync(file.path);
       } catch {}
-
-      return { url: dataUrl };
-    } catch (err) {
-      return { url: `/api/uploads/${file.filename}` };
+    } catch {
+      url = `/api/uploads/${file.filename}`;
     }
+
+    try {
+      await this.settingsService.updateRestaurant(
+        user.restaurantId,
+        user.id,
+        { logoUrl: url } as never,
+      );
+    } catch {
+      // Best-effort auto-save; frontend also executes updateRestaurant mutation
+    }
+
+    return { url };
   }
 
   @Auth('settings.manage')
