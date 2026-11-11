@@ -4,7 +4,7 @@ import { loginSchema, type LoginDto } from "@nodedr-restaurant/types";
 import { motion, useReducedMotion } from "motion/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { Logo } from "@/components/layout/logo";
@@ -12,13 +12,21 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
-import { useLogin } from "@/hooks/use-auth";
+import { useCurrentUser, useLogin } from "@/hooks/use-auth";
 import { ApiError } from "@/lib/api";
 import { safeZodResolver } from "@/lib/safe-zod-resolver";
 
 export default function LoginPage() {
   const router = useRouter();
   const login = useLogin();
+  const { data: auth, isSuccess: isAuthenticated } = useCurrentUser();
+
+  useEffect(() => {
+    if (isAuthenticated && auth?.user) {
+      router.replace("/dashboard");
+    }
+  }, [isAuthenticated, auth, router]);
+
   // Set once the server says this account uses two-factor authentication.
   const [needsCode, setNeedsCode] = useState(false);
   // Shown inline under the form (a toast vanishes before it can be read).
