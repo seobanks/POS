@@ -16,6 +16,20 @@ const nextConfig: NextConfig = {
   // socket.io's endpoint is literally "/socket.io/" — the backend 404s on the
   // slash-less form, so Next must not redirect it.
   skipTrailingSlashRedirect: true,
+  async redirects() {
+    return [
+      {
+        source: "/docs/:path*",
+        destination: "/login",
+        permanent: false,
+      },
+      {
+        source: "/docs",
+        destination: "/login",
+        permanent: false,
+      },
+    ];
+  },
   async rewrites() {
     return [
       { source: "/api/:path*", destination: `${BACKEND_URL}/api/:path*` },

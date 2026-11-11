@@ -78,7 +78,6 @@ function StaffApiKeysCard() {
         </code>
         <p className="mt-2">
           Point your MCP client at that URL with header <code className="font-mono">Authorization: Bearer &lt;key&gt;</code>.
-          See <a href="/docs/api" className="underline">API docs</a> for the full tool list.
         </p>
       </div>
 
