@@ -4,21 +4,26 @@ import {
   Get,
   Param,
   Post,
+  Req,
   Res,
   UseGuards,
   UsePipes,
 } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import {
+  forgotPasswordSchema,
   loginSchema,
   pinLoginSchema,
   registerSchema,
+  resetPasswordSchema,
   twoFactorCodeSchema,
   twoFactorDisableSchema,
+  type ForgotPasswordDto,
+  type ResetPasswordDto,
   type SessionUser,
 } from '@nodedr-restaurant/types';
 import { Throttle } from '@nestjs/throttler';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
@@ -93,6 +98,26 @@ export class AuthController {
     const { token, user } = await this.authService.pinLogin(body as never);
     this.setSessionCookie(res, token);
     return { user };
+  }
+
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Post('forgot-password')
+  @UsePipes(new ZodValidationPipe(forgotPasswordSchema))
+  async forgotPassword(
+    @Body() body: ForgotPasswordDto,
+    @Req() req: Request,
+  ) {
+    const origin =
+      (req.headers.origin as string) ||
+      (req.headers.host ? `https://${req.headers.host}` : undefined);
+    return this.authService.forgotPassword(body, origin);
+  }
+
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Post('reset-password')
+  @UsePipes(new ZodValidationPipe(resetPasswordSchema))
+  async resetPassword(@Body() body: ResetPasswordDto) {
+    return this.authService.resetPassword(body);
   }
 
   @Post('logout')
