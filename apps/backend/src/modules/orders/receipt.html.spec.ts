@@ -128,3 +128,82 @@ describe('receipt HTML with dynamic UPI QR', () => {
     expect(html).not.toContain('Scan with GPay / PhonePe / Paytm');
   });
 });
+
+describe('receipt HTML with restaurant logo', () => {
+  it('renders centered monochrome-filtered logo when logoUrl is provided', () => {
+    const logoUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY44YAAAAASUVORK5CYII=';
+    const html = buildReceiptHtml({
+      ...base,
+      logoUrl,
+    });
+    expect(html).toContain(
+      '<div class="center" style="margin-bottom: 4px;"><img src="' +
+        logoUrl +
+        '" alt="Logo" style="max-height: 48px; max-width: 140px; object-fit: contain; filter: grayscale(100%) contrast(150%);" /></div>',
+    );
+    // Logo appears before restaurant name heading
+    const logoIndex = html.indexOf('alt="Logo"');
+    const h1Index = html.indexOf(`<h1>${base.restaurantName}</h1>`);
+    expect(logoIndex).toBeGreaterThan(-1);
+    expect(h1Index).toBeGreaterThan(logoIndex);
+  });
+
+  it('omits logo element when logoUrl is null or not provided', () => {
+    const htmlNull = buildReceiptHtml({
+      ...base,
+      logoUrl: null,
+    });
+    expect(htmlNull).not.toContain('alt="Logo"');
+    expect(htmlNull).not.toContain('style="max-height: 48px;');
+
+    const htmlOmitted = buildReceiptHtml(base);
+    expect(htmlOmitted).not.toContain('alt="Logo"');
+  });
+});
+
+describe('receipt HTML compliance headers', () => {
+  it('renders both GSTIN and Tax ID / FSSAI cleanly when branch.taxId differs from branch.gstNumber under INDIA_GST', () => {
+    const html = buildReceiptHtml({
+      ...base,
+      branch: {
+        ...base.branch,
+        taxRegime: 'INDIA_GST',
+        gstNumber: '27AABCH1234F1Z5',
+        taxId: '10019022009876',
+      },
+    });
+    expect(html).toContain('GSTIN: 27AABCH1234F1Z5');
+    expect(html).toContain('Tax ID / FSSAI: 10019022009876');
+  });
+
+  it('preserves existing FSSAI prefix in taxId when both are provided', () => {
+    const html = buildReceiptHtml({
+      ...base,
+      branch: {
+        ...base.branch,
+        taxRegime: 'INDIA_GST',
+        gstNumber: '27AABCH1234F1Z5',
+        taxId: 'FSSAI: 10019022009876',
+      },
+    });
+    expect(html).toContain('GSTIN: 27AABCH1234F1Z5');
+    expect(html).toContain('FSSAI: 10019022009876');
+    expect(html).not.toContain('Tax ID / FSSAI: FSSAI');
+  });
+
+  it('deduplicates when gstNumber and taxId are identical under INDIA_GST', () => {
+    const html = buildReceiptHtml({
+      ...base,
+      branch: {
+        ...base.branch,
+        taxRegime: 'INDIA_GST',
+        gstNumber: '27AABCH1234F1Z5',
+        taxId: '27AABCH1234F1Z5',
+      },
+    });
+    expect(html).toContain('GSTIN: 27AABCH1234F1Z5');
+    // Ensure it is only shown once
+    const matches = html.match(/27AABCH1234F1Z5/g);
+    expect(matches).toHaveLength(1);
+  });
+});

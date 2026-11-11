@@ -58,7 +58,8 @@ export function TicketCard({ ticket, branchId }: { ticket: KotTicket; branchId: 
   const reprint = useReprintKot(branchId);
   const { note, clear: clearNote, toast } = useNoteToast();
   const nextStatus = NEXT_STATUS[ticket.status];
-  const isLate = elapsed >= 15;
+  const isCritical = elapsed >= 25 && ticket.status !== "READY";
+  const isLate = elapsed >= 15 && !isCritical && ticket.status !== "READY";
   const isFresh = ticket.status === "NEW" && elapsed < FRESH_MINUTES;
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
@@ -75,7 +76,9 @@ export function TicketCard({ ticket, branchId }: { ticket: KotTicket; branchId: 
     <Card
       className={cn(
         "flex shrink-0 flex-col gap-3 p-4",
-        (isLate || ticket.isPriority) && "border-warning/50 ring-1 ring-warning/30",
+        isCritical && "border-destructive ring-2 ring-destructive/40 bg-destructive/5",
+        isLate && "border-warning/70 ring-1 ring-warning/50 bg-warning/5",
+        !isCritical && !isLate && ticket.isPriority && "border-warning/50 ring-1 ring-warning/30",
         isFresh && "border-primary ring-2 ring-primary/40 motion-safe:animate-pulse",
       )}
     >
@@ -128,8 +131,12 @@ export function TicketCard({ ticket, branchId }: { ticket: KotTicket; branchId: 
         </div>
         <div
           className={cn(
-            "flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium tabular-nums",
-            isLate ? "bg-warning/15 text-warning" : "bg-secondary text-muted-foreground",
+            "flex items-center gap-1 rounded-full px-2 py-1 text-xs tabular-nums",
+            isCritical
+              ? "bg-destructive/15 text-destructive font-bold animate-pulse"
+              : isLate
+              ? "bg-warning/15 text-warning font-semibold"
+              : "bg-secondary text-muted-foreground",
           )}
         >
           <Timer className="h-3 w-3" />

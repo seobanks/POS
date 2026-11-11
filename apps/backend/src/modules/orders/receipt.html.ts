@@ -81,11 +81,13 @@ interface ReceiptOrder {
 
 export function buildReceiptHtml({
   restaurantName,
+  logoUrl,
   branch,
   currency,
   order,
 }: {
   restaurantName: string;
+  logoUrl?: string | null;
   branch: {
     name: string;
     address: string | null;
@@ -105,13 +107,40 @@ export function buildReceiptHtml({
   const money = (n: number) => `${sym}${Number(n).toFixed(2)}`;
   const dateStr = new Date(order.createdAt).toLocaleString();
   const taxLabel = resolveTaxLabel(branch.taxRegime, branch.taxLabel);
-  // gstNumber is the pre-multi-region field every India install already
-  // has populated; taxId is the new generic one. India falls back to the
-  // old field so nothing already printed on file goes blank.
-  const taxIdValue =
-    branch.taxId ||
-    (branch.taxRegime === 'INDIA_GST' ? branch.gstNumber : null);
   const taxIdLabel = resolveTaxIdLabel(branch.taxRegime);
+
+  // Compliance header: if taxId is set and differs from gstNumber, ensure both
+  // are shown cleanly (e.g. GSTIN and Tax ID / FSSAI).
+  const rawGst = branch.gstNumber?.trim();
+  const rawTaxId = branch.taxId?.trim();
+  const taxLines: string[] = [];
+
+  if (branch.taxRegime === 'INDIA_GST') {
+    if (rawGst && rawTaxId && rawGst !== rawTaxId) {
+      const gstLine = /^gstin/i.test(rawGst) ? rawGst : `GSTIN: ${rawGst}`;
+      taxLines.push(gstLine);
+      if (/^(fssai|tax\s*id|pan|cin|tin)/i.test(rawTaxId)) {
+        taxLines.push(rawTaxId);
+      } else {
+        taxLines.push(`Tax ID / FSSAI: ${rawTaxId}`);
+      }
+    } else if (rawGst) {
+      taxLines.push(/^gstin/i.test(rawGst) ? rawGst : `GSTIN: ${rawGst}`);
+    } else if (rawTaxId) {
+      if (/^(fssai|tax\s*id|pan|cin|tin)/i.test(rawTaxId)) {
+        taxLines.push(rawTaxId);
+      } else {
+        taxLines.push(`${taxIdLabel}: ${rawTaxId}`);
+      }
+    }
+  } else {
+    if (rawTaxId) {
+      taxLines.push(`${taxIdLabel}: ${rawTaxId}`);
+    }
+    if (rawGst && (!rawTaxId || rawGst !== rawTaxId)) {
+      taxLines.push(/^gstin/i.test(rawGst) ? rawGst : `GSTIN: ${rawGst}`);
+    }
+  }
 
   const itemRows = order.items
     .map((item) => {
@@ -266,11 +295,12 @@ export function buildReceiptHtml({
     window.addEventListener('message', function (e) { if (e.data === 'print') window.print(); });
   </script>
   <div class="receipt">
+    ${logoUrl ? `<div class="center" style="margin-bottom: 4px;"><img src="${esc(logoUrl)}" alt="Logo" style="max-height: 48px; max-width: 140px; object-fit: contain; filter: grayscale(100%) contrast(150%);" /></div>` : ''}
     <h1>${esc(restaurantName)}</h1>
     <p class="center muted">
       ${esc(branch.name)}${branch.address ? `<br>${esc(branch.address)}` : ''}
       ${branch.phone ? `<br>Ph: ${esc(branch.phone)}` : ''}
-      ${taxIdValue ? `<br>${esc(taxIdLabel)}: ${esc(taxIdValue)}` : ''}
+      ${taxLines.map((line) => `<br>${esc(line)}`).join('')}
     </p>
     <hr class="rule">
     <p class="muted">

@@ -1,10 +1,11 @@
 "use client";
 
 import { Check, ChefHat, MessageCircle, Pencil, Phone, Printer, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { StatusNote, useNoteToast } from "@/components/ui/status-note";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { ChannelBadge, TypeBadge } from "@/components/orders/channel-badges";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -13,9 +14,13 @@ import { EditBillDialog } from "@/components/orders/edit-bill-dialog";
 import { ReasonDialog } from "@/components/orders/reason-dialog";
 import { hasPermission, useCurrentUser } from "@/hooks/use-auth";
 import { useAcceptOrder, useOrder, useRejectOrder } from "@/hooks/use-orders";
+import { useSettings } from "@/hooks/use-settings";
+import { generateWhatsAppBillText } from "@/lib/whatsapp-bill";
 import { openKotPrint, openReceiptPrint } from "@/lib/print";
 import { formatCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
+
+export { generateWhatsAppBillText } from "@/lib/whatsapp-bill";
 
 const CANCEL_SOURCE_LABEL = {
   STAFF: "Cancelled by staff",
@@ -46,6 +51,16 @@ export function OrderDetailDialog({
   const [cancelOpen, setCancelOpen] = useState(false);
   const [declineOpen, setDeclineOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [manualMobile, setManualMobile] = useState("");
+  const { data: settings } = useSettings(branchId);
+  const restaurantName = settings?.restaurant?.name || "Hanva Fine Dine";
+
+  useEffect(() => {
+    if (!open) {
+      setManualMobile("");
+    }
+  }, [open, orderId]);
+
   const customerName = order?.guestName ?? order?.customer?.name ?? "Walk-in guest";
   const pending = order?.status === "OPEN" && order?.acceptance === "PENDING";
   const canCancel = order?.status === "OPEN" && !pending;
@@ -57,12 +72,22 @@ export function OrderDetailDialog({
       },
       (err: unknown) => toast.error(err instanceof Error ? err.message : "Something went wrong"),
     );
+
+  const billText = order ? generateWhatsAppBillText(order, restaurantName) : "";
+  const encodedText = encodeURIComponent(billText);
   const phone = order?.customer?.phone ?? null;
-  const waHref = phone
-    ? `https://wa.me/${phone.replace(/[^\d]/g, "")}?text=${encodeURIComponent(
-        `Hi, this is regarding your order #${order?.orderNumber}.`,
-      )}`
+  const digits = phone ? phone.replace(/[^\d]/g, "") : "";
+  const cleanPhone = digits.length === 10 ? `91${digits}` : digits;
+  const waHref = cleanPhone
+    ? `https://wa.me/${cleanPhone}?text=${encodedText}`
     : null;
+
+  const inputDigits = manualMobile.replace(/[^\d]/g, "").replace(/^91/, "");
+  const handleSendManualWhatsApp = () => {
+    if (!inputDigits || !order) return;
+    const url = `https://wa.me/91${inputDigits}?text=${encodedText}`;
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -158,7 +183,34 @@ export function OrderDetailDialog({
                   </div>
                 </>
               ) : (
-                <p className="text-xs text-muted-foreground">No phone number on file.</p>
+                <div className="flex flex-col gap-2">
+                  <p className="text-xs text-muted-foreground">No phone number on file.</p>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <Input
+                      type="tel"
+                      placeholder="Enter customer mobile (e.g. 9876543210)"
+                      value={manualMobile}
+                      onChange={(e) => setManualMobile(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleSendManualWhatsApp();
+                        }
+                      }}
+                      className="h-9 text-xs flex-1"
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={!inputDigits}
+                      onClick={handleSendManualWhatsApp}
+                      className="shrink-0"
+                    >
+                      <MessageCircle className="mr-1.5 h-4 w-4" /> Send Bill on WhatsApp
+                    </Button>
+                  </div>
+                </div>
               )}
             </div>
 

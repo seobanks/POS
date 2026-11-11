@@ -440,6 +440,7 @@ export class OrdersController {
     }
     const html = buildReceiptHtml({
       restaurantName: order.branch.restaurant.name,
+      logoUrl: order.branch.restaurant.logoUrl,
       currency: order.branch.restaurant.currency,
       branch: {
         name: order.branch.name,
