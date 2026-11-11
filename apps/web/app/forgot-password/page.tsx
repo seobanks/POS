@@ -7,12 +7,13 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { AlertCircle, ArrowLeft, CheckCircle2, ExternalLink, Loader2, Mail } from "lucide-react";
 import { Logo } from "@/components/layout/logo";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useForgotPassword } from "@/hooks/use-auth";
 import { ApiError } from "@/lib/api";
 import { safeZodResolver } from "@/lib/safe-zod-resolver";
+import { cn } from "@/lib/utils";
 
 export default function ForgotPasswordPage() {
   const forgotPassword = useForgotPassword();
@@ -94,25 +95,23 @@ export default function ForgotPasswordPage() {
                 <p className="text-muted-foreground">
                   (SMTP is not yet configured on this instance, so you can reset immediately below)
                 </p>
-                <Button
-                  asChild
-                  variant="default"
-                  className="mt-1 h-10 gap-1.5"
+                <Link
+                  href={successInfo.resetUrl}
+                  className={cn(buttonVariants({ variant: "default" }), "mt-1 h-10 gap-1.5")}
                 >
-                  <Link href={successInfo.resetUrl}>
-                    <span>Set New Password</span>
-                    <ExternalLink className="h-3.5 w-3.5" />
-                  </Link>
-                </Button>
+                  <span>Set New Password</span>
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </Link>
               </div>
             )}
 
-            <Button asChild variant="outline" className="mt-2 h-11 w-full gap-2">
-              <Link href="/login">
-                <ArrowLeft className="h-4 w-4" />
-                <span>Return to Sign in</span>
-              </Link>
-            </Button>
+            <Link
+              href="/login"
+              className={cn(buttonVariants({ variant: "outline" }), "mt-2 h-11 w-full gap-2")}
+            >
+              <ArrowLeft className="h-4 w-4" />
+              <span>Return to Sign in</span>
+            </Link>
           </div>
         ) : (
           <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="flex flex-col gap-5">
@@ -164,12 +163,16 @@ export default function ForgotPasswordPage() {
               )}
             </Button>
 
-            <Button asChild variant="ghost" className="h-10 text-xs text-muted-foreground hover:text-foreground">
-              <Link href="/login" className="flex items-center justify-center gap-1.5">
-                <ArrowLeft className="h-3.5 w-3.5" />
-                <span>Back to Sign in</span>
-              </Link>
-            </Button>
+            <Link
+              href="/login"
+              className={cn(
+                buttonVariants({ variant: "ghost" }),
+                "h-10 text-xs text-muted-foreground hover:text-foreground flex items-center justify-center gap-1.5",
+              )}
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              <span>Back to Sign in</span>
+            </Link>
           </form>
         )}
       </motion.div>

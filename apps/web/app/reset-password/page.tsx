@@ -6,11 +6,12 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { AlertCircle, CheckCircle2, KeyRound, Loader2 } from "lucide-react";
 import { Logo } from "@/components/layout/logo";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { useResetPassword } from "@/hooks/use-auth";
 import { ApiError } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
 function ResetPasswordForm() {
   const router = useRouter();
@@ -88,9 +89,12 @@ function ResetPasswordForm() {
           <p className="text-xs text-muted-foreground">
             This password reset link is invalid or incomplete. Please request a fresh link.
           </p>
-          <Button asChild className="h-11 w-full">
-            <Link href="/forgot-password">Request New Reset Link</Link>
-          </Button>
+          <Link
+            href="/forgot-password"
+            className={cn(buttonVariants({ variant: "default" }), "h-11 w-full")}
+          >
+            Request New Reset Link
+          </Link>
         </div>
       ) : isSuccess ? (
         <div className="flex flex-col gap-5 rounded-2xl border border-border/60 bg-card p-6 shadow-sm">
@@ -101,9 +105,12 @@ function ResetPasswordForm() {
           <p className="text-sm text-muted-foreground">
             Your password has been securely updated. You can now sign in with your new password.
           </p>
-          <Button asChild className="mt-2 h-11 w-full">
-            <Link href="/login">Sign in Now</Link>
-          </Button>
+          <Link
+            href="/login"
+            className={cn(buttonVariants({ variant: "default" }), "mt-2 h-11 w-full")}
+          >
+            Sign in Now
+          </Link>
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="flex flex-col gap-5">
