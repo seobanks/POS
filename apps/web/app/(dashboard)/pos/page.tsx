@@ -49,6 +49,12 @@ function PosPageInner() {
   const [orderType, setOrderType] = useState<PosOrderType>("DINE_IN");
   const [delivery, setDelivery] = useState<DeliveryDetails>({ address: "", pincode: "", phone: "" });
   const [scheduledFor, setScheduledFor] = useState("");
+  const handleOrderTypeChange = (next: PosOrderType) => {
+    setOrderType(next);
+    if (next !== "DELIVERY") {
+      setScheduledFor("");
+    }
+  };
   const [tableId, setTableIdRaw] = useState(preselectedTableId);
   // Unsent cart per table, so switching tables never moves or loses items.
   const [drafts, setDrafts] = useState<Drafts<CartLine>>({});
@@ -201,7 +207,7 @@ function PosPageInner() {
         type: orderType,
         tableId: orderType === "DINE_IN" ? tableId : undefined,
         ...(orderType === "DELIVERY" ? { delivery } : {}),
-        ...(orderType !== "DINE_IN" && scheduledFor
+        ...(orderType === "DELIVERY" && scheduledFor
           ? { scheduledFor: new Date(scheduledFor).toISOString() }
           : {}),
         items,
@@ -322,7 +328,7 @@ function PosPageInner() {
               <CartPanel
                 lines={lines}
                 orderType={orderType}
-                onOrderTypeChange={setOrderType}
+                onOrderTypeChange={handleOrderTypeChange}
                 tables={tables}
                 tableId={tableId}
                 onTableChange={setTableId}

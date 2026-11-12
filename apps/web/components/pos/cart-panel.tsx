@@ -1,6 +1,6 @@
 "use client";
 
-import { Minus, Plus, ShoppingCart, Trash2 } from "lucide-react";
+import { Minus, Plus, ShoppingBag, ShoppingCart, Trash2, Truck, UtensilsCrossed } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -80,15 +80,27 @@ export function CartPanel({
   return (
     <div className="flex h-full flex-col gap-4">
       <Tabs value={orderType} onValueChange={(v) => onOrderTypeChange(v as PosOrderType)}>
-        <TabsList className="w-full">
-          <TabsTrigger value="DINE_IN" className="flex-1">
-            Dine-in
+        <TabsList className="w-full h-12 p-1 rounded-xl bg-muted/80 gap-1">
+          <TabsTrigger
+            value="DINE_IN"
+            className="flex-1 h-full rounded-lg text-sm font-semibold gap-1.5 data-active:bg-background data-active:text-foreground data-active:shadow-sm"
+          >
+            <UtensilsCrossed className="h-4 w-4 shrink-0" />
+            <span>Dine-in</span>
           </TabsTrigger>
-          <TabsTrigger value="TAKEAWAY" className="flex-1">
-            Takeaway
+          <TabsTrigger
+            value="TAKEAWAY"
+            className="flex-[1.4] h-full rounded-lg text-[15px] sm:text-base font-bold gap-2 tracking-tight data-active:bg-primary data-active:text-primary-foreground data-active:shadow-md transition-all"
+          >
+            <ShoppingBag className="h-4.5 w-4.5 shrink-0" strokeWidth={2.5} />
+            <span>Takeaway</span>
           </TabsTrigger>
-          <TabsTrigger value="DELIVERY" className="flex-1">
-            Delivery
+          <TabsTrigger
+            value="DELIVERY"
+            className="flex-1 h-full rounded-lg text-sm font-semibold gap-1.5 data-active:bg-background data-active:text-foreground data-active:shadow-sm"
+          >
+            <Truck className="h-4 w-4 shrink-0" />
+            <span>Delivery</span>
           </TabsTrigger>
         </TabsList>
       </Tabs>
@@ -138,7 +150,7 @@ export function CartPanel({
         </div>
       )}
 
-      {orderType !== "DINE_IN" && (
+      {orderType === "DELIVERY" && (
         <label className="flex flex-col gap-1 text-xs text-muted-foreground">
           Schedule for later (optional)
           <Input
