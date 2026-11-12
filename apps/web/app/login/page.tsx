@@ -65,7 +65,7 @@ export default function LoginPage() {
     if (firstKey && fieldErrors[firstKey]?.message) {
       setError(fieldErrors[firstKey]!.message!);
     } else {
-      setError("Please check your email and password.");
+      setError("Please check your username or email and password.");
     }
   };
 
@@ -93,19 +93,18 @@ export default function LoginPage() {
 
         <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="flex flex-col gap-5">
           <div className="flex flex-col gap-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">Username or Email</Label>
             <Input
               id="email"
-              type="email"
+              type="text"
               autoComplete="username"
-              inputMode="email"
               autoCapitalize="none"
               autoCorrect="off"
               spellCheck={false}
               enterKeyHint="next"
               autoFocus
               className="h-11"
-              placeholder="you@restaurant.com"
+              placeholder="Username or email address"
               {...register("email")}
             />
             {errors.email && (

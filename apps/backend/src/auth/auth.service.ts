@@ -52,20 +52,39 @@ export class AuthService {
   }
 
   async login(dto: LoginDto) {
-    const user = await this.prisma.user.findFirst({
-      where: { email: dto.email, isActive: true },
+    const identifier = dto.email.trim();
+
+    // 1. Try finding by email/username (case-insensitive)
+    let user = await this.prisma.user.findFirst({
+      where: {
+        email: { equals: identifier, mode: 'insensitive' },
+        isActive: true,
+      },
       include: {
         role: { include: { permissions: { include: { permission: true } } } },
       },
     });
 
+    // 2. If not found by email/username, also match by staff name (case-insensitive)
     if (!user) {
-      throw new UnauthorizedException('Invalid email or password');
+      user = await this.prisma.user.findFirst({
+        where: {
+          name: { equals: identifier, mode: 'insensitive' },
+          isActive: true,
+        },
+        include: {
+          role: { include: { permissions: { include: { permission: true } } } },
+        },
+      });
+    }
+
+    if (!user) {
+      throw new UnauthorizedException('Invalid username, email, or password');
     }
 
     const valid = await bcrypt.compare(dto.password, user.passwordHash);
     if (!valid) {
-      throw new UnauthorizedException('Invalid email or password');
+      throw new UnauthorizedException('Invalid username, email, or password');
     }
 
     // Only asked for after the password is right, so the response never

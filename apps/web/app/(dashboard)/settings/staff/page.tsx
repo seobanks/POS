@@ -70,7 +70,7 @@ export default function StaffPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
-                <TableHead>Contact</TableHead>
+                <TableHead>Username / Contact</TableHead>
                 <TableHead>Role</TableHead>
                 <TableHead>Branches</TableHead>
                 <TableHead className="text-right">Active</TableHead>

@@ -48,13 +48,20 @@ export class UsersService {
     await this.assertRoleInRestaurant(restaurantId, dto.roleId);
     await this.assertBranchesInRestaurant(restaurantId, dto.branchIds);
 
-    if (dto.email) {
+    const trimmedName = dto.name.trim();
+    const rawEmail = dto.email?.trim();
+    const username =
+      rawEmail && rawEmail.length > 0
+        ? rawEmail
+        : trimmedName.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+    if (username) {
       const existing = await this.prisma.user.findFirst({
-        where: { restaurantId, email: dto.email },
+        where: { restaurantId, email: username },
       });
       if (existing) {
         throw new ConflictException(
-          'A staff account with this email already exists',
+          'A staff account with this username or email already exists',
         );
       }
     }
@@ -63,9 +70,9 @@ export class UsersService {
     const user = await this.prisma.user.create({
       data: {
         restaurantId,
-        name: dto.name,
-        email: dto.email,
-        phone: dto.phone,
+        name: trimmedName,
+        email: username || null,
+        phone: dto.phone?.trim() || null,
         roleId: dto.roleId,
         passwordHash,
         branches: {

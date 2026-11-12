@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const loginSchema = z.object({
-  email: z.string().email("Please enter a valid email address"),
+  email: z.string().min(1, "Username or email is required"),
   password: z.string().min(1, "Password is required"),
   // Authenticator code or recovery code, once two-factor auth is on.
   totp: z.string().trim().min(6).max(20).optional(),
