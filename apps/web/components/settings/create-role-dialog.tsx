@@ -79,7 +79,11 @@ export function CreateRoleDialog({ onClose }: { onClose: () => void }) {
 
           <div className="flex flex-col gap-2">
             <Label>Permissions</Label>
-            <PermissionChecklist selected={permissionKeys} onToggle={togglePermission} />
+            <PermissionChecklist
+              selected={permissionKeys}
+              onToggle={togglePermission}
+              onSetAll={setPermissionKeys}
+            />
           </div>
 
           <DialogFooter>

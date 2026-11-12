@@ -87,6 +87,23 @@ export class RolesService {
       ? await this.assertPermissionKeysValid(dto.permissionKeys)
       : undefined;
 
+    // Safety guard: ensure the OWNER role always retains roles.manage and settings.manage
+    // so administrators can never accidentally lock themselves out of the settings panel.
+    if (existing.name === 'OWNER' && nextPermissions) {
+      const essentialKeys = ['roles.manage', 'settings.manage'];
+      for (const key of essentialKeys) {
+        if (!nextPermissions.some((p) => p.key === key)) {
+          const perm = await this.prisma.permission.findFirst({
+            where: { key },
+            select: { id: true, key: true },
+          });
+          if (perm) {
+            nextPermissions.push(perm);
+          }
+        }
+      }
+    }
+
     const updated = await this.prisma.$transaction(async (tx) => {
       if (nextPermissions) {
         const currentKeys = new Set(

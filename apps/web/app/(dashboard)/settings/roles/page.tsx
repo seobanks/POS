@@ -77,7 +77,11 @@ export default function RolesPage() {
             </TableHeader>
             <TableBody>
               {roles.map((role) => (
-                <TableRow key={role.id}>
+                <TableRow
+                  key={role.id}
+                  className="cursor-pointer hover:bg-muted/50 transition-colors"
+                  onClick={() => setEditingRole(role)}
+                >
                   <TableCell className="font-medium text-foreground">
                     {role.label}
                     <div className="text-xs font-normal text-muted-foreground">{role.name}</div>
@@ -90,24 +94,23 @@ export default function RolesPage() {
                   <TableCell className="text-muted-foreground">
                     {role.permissions.length} granted
                   </TableCell>
-                  <TableCell className="text-right">
-                    {role.isSystem ? (
-                      <span className="text-xs text-muted-foreground">—</span>
-                    ) : (
-                      <div className="flex items-center justify-end gap-1">
-                        <Button variant="ghost" size="sm" onClick={() => setEditingRole(role)}>
-                          Edit
-                        </Button>
+                  <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center justify-end gap-1">
+                      <Button variant="ghost" size="sm" onClick={() => setEditingRole(role)}>
+                        Edit
+                      </Button>
+                      {!role.isSystem && (
                         <Button
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8 text-muted-foreground hover:text-destructive"
                           onClick={() => onDelete(role)}
+                          aria-label={`Delete ${role.label}`}
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}

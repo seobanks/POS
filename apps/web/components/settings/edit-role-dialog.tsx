@@ -3,10 +3,12 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { PermissionChecklist } from "@/components/settings/permission-checklist";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -58,12 +60,22 @@ export function EditRoleDialog({
       <DialogContent className="sm:max-w-lg">
         <form onSubmit={onSubmit} className="flex flex-col gap-4">
           <DialogHeader>
-            <DialogTitle>Edit role</DialogTitle>
+            <div className="flex items-center gap-2">
+              <DialogTitle>Edit role</DialogTitle>
+              <Badge variant={role.isSystem ? "secondary" : "outline"} className="font-normal text-xs">
+                {role.isSystem ? "Seeded" : "Custom"}
+              </Badge>
+            </div>
+            <DialogDescription className="text-xs text-muted-foreground">
+              {role.isSystem
+                ? "Configure granted permissions and custom display label for this role."
+                : "Configure granted permissions and display label."}
+            </DialogDescription>
           </DialogHeader>
 
           <div className="flex flex-col gap-2">
-            <Label htmlFor="r-edit-name">Name</Label>
-            <Input id="r-edit-name" value={role.name} disabled />
+            <Label htmlFor="r-edit-name">Name (system key)</Label>
+            <Input id="r-edit-name" value={role.name} disabled className="bg-muted text-muted-foreground" />
           </div>
 
           <div className="flex flex-col gap-2">
@@ -79,7 +91,11 @@ export function EditRoleDialog({
 
           <div className="flex flex-col gap-2">
             <Label>Permissions</Label>
-            <PermissionChecklist selected={permissionKeys} onToggle={togglePermission} />
+            <PermissionChecklist
+              selected={permissionKeys}
+              onToggle={togglePermission}
+              onSetAll={setPermissionKeys}
+            />
           </div>
 
           <DialogFooter>
