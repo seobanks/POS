@@ -18,7 +18,6 @@ import { Card } from "@/components/ui/card";
 import { useBranch } from "@/hooks/use-branch";
 import type { MenuItem } from "@/hooks/use-menu";
 import { usePrintOrderUsb } from "@/hooks/use-print";
-import { openReceiptPrint } from "@/lib/print";
 import {
   useAddOrderItems,
   useCreateOrder,
@@ -200,8 +199,16 @@ function PosPageInner() {
       setCartOpen(true);
       toast.success(message);
       if (printBill && branchId) {
-        openReceiptPrint(order.id, branchId);
-        printUsb.mutate({ orderId: order.id, drawer: false });
+        printUsb.mutate(
+          { orderId: order.id, drawer: false },
+          {
+            onSuccess: () => toast.success("Bill sent to thermal printer"),
+            onError: (err) =>
+              toast.error(
+                err instanceof ApiError ? err.message : "Could not print to thermal printer",
+              ),
+          },
+        );
       }
     };
 

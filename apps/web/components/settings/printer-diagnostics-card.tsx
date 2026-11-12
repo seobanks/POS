@@ -270,67 +270,6 @@ export function PrinterDiagnosticsCard() {
         >
           Open cash drawer
         </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          className="ml-2"
-          onClick={() => {
-            const sampleHtml = `<!doctype html>
-<html>
-<head>
-<meta charset="utf-8">
-<title>Thermal Test Slip</title>
-<style>
-  * { box-sizing: border-box; }
-  body { font-family: -apple-system, Segoe UI, Roboto, monospace, sans-serif; margin: 0; padding: 4mm; color: #111; width: 80mm; font-size: 13px; }
-  .center { text-align: center; }
-  .rule { border: none; border-top: 1px dashed #999; margin: 6px 0; }
-  table { width: 100%; border-collapse: collapse; font-size: 12px; }
-  .num { text-align: right; }
-  @page { size: 80mm auto; margin: 0; }
-  @media print { html, body { width: 80mm; } }
-</style>
-</head>
-<body>
-  <div class="center">
-    <h2 style="margin: 0 0 4px; font-size: 16px;">${branch?.name ?? "Hanva Fine Dine"}</h2>
-    <p style="margin: 0; font-size: 11px; color: #666;">Thermal Printer Test Slip (80mm)</p>
-  </div>
-  <hr class="rule">
-  <p style="margin: 2px 0; font-size: 11px;">Date: ${new Date().toLocaleString()}</p>
-  <p style="margin: 2px 0; font-size: 11px;">Status: Printer Online & Ready</p>
-  <hr class="rule">
-  <table>
-    <tr><td>1x Paneer Butter Masala</td><td class="num">₹280.00</td></tr>
-    <tr><td>2x Butter Naan</td><td class="num">₹120.00</td></tr>
-    <tr style="font-weight: bold; border-top: 1px solid #111;"><td>TOTAL</td><td class="num">₹400.00</td></tr>
-  </table>
-  <hr class="rule">
-  <div class="center" style="font-size: 11px; margin-top: 8px;">
-    ✓ Thermal print test successful!<br>
-    Ready for live billing.
-  </div>
-</body>
-</html>`;
-            const frame = document.createElement("iframe");
-            frame.style.cssText =
-              "position:fixed;top:-10000px;left:-10000px;width:302px;height:600px;border:0;";
-            frame.srcdoc = sampleHtml;
-            frame.onload = () => {
-              setTimeout(() => {
-                try {
-                  frame.contentWindow?.focus();
-                  frame.contentWindow?.print();
-                } catch {}
-                setTimeout(() => frame.remove(), 60_000);
-              }, 150);
-            };
-            document.body.appendChild(frame);
-            toast.success("Opening thermal print preview");
-          }}
-        >
-          Test Print (Browser 80mm)
-        </Button>
         <p className="mt-2 text-xs text-muted-foreground">
           The drawer must be plugged into the printer&rsquo;s drawer (RJ11) port. Receipts printed via USB for cash
           payments open it automatically.

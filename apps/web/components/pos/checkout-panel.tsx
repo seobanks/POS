@@ -33,7 +33,6 @@ import { publishDisplay } from "@/lib/customer-display";
 import { playPaymentReceived } from "@/lib/celebrate";
 import { buildUpiUri } from "@/lib/upi";
 import { QRCodeSVG } from "qrcode.react";
-import { openKotPrint, openReceiptPrint } from "@/lib/print";
 import { round2 } from "@/lib/pricing-preview";
 
 const METHODS: PaymentMethodDto[] = ["CASH", "CARD", "UPI", "OTHER"];
@@ -273,8 +272,7 @@ export function CheckoutPanel({
     );
   };
 
-  const printBill = () => branchId && openReceiptPrint(order.id, branchId, locked ? {} : settled);
-  const printBillThermal = () =>
+  const printBill = () =>
     printUsb.mutate(
       { orderId: order.id, adjustments: locked ? {} : settled },
       {
@@ -309,24 +307,21 @@ export function CheckoutPanel({
         <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
           <Button
             variant="outline"
-            className="h-11"
-            onClick={() => branchId && openReceiptPrint(completed.id, branchId)}
-          >
-            Print receipt (browser)
-          </Button>
-          <Button
-            variant="outline"
-            className="h-11"
+            className="h-11 gap-2 font-semibold"
             disabled={printUsb.isPending}
             onClick={() =>
-              printUsb.mutate({ orderId: completed.id, drawer: completed.payments?.some((p) => p.method === "CASH") }, {
-                onSuccess: onPrinted,
-                onError: (err) =>
-                  toast.error(err instanceof ApiError ? err.message : "Could not print to the thermal printer"),
-              })
+              printUsb.mutate(
+                { orderId: completed.id, drawer: completed.payments?.some((p) => p.method === "CASH") },
+                {
+                  onSuccess: onPrinted,
+                  onError: (err) =>
+                    toast.error(err instanceof ApiError ? err.message : "Could not print to the thermal printer"),
+                },
+              )
             }
           >
-            {printUsb.isPending ? "Printing…" : "Thermal receipt"}
+            <Printer className="h-4 w-4" />
+            {printUsb.isPending ? "Printing…" : "Print receipt"}
           </Button>
           <Button className="h-11" onClick={onDone}>New order</Button>
         </div>
@@ -411,27 +406,17 @@ export function CheckoutPanel({
             )}
           </div>
           <div className="flex shrink-0 flex-wrap justify-end gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="shrink-0"
-            onClick={() => branchId && openKotPrint(order.id, branchId)}
-          >
-            <Printer className="h-4 w-4" />
-            KOT (browser)
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="shrink-0"
-            disabled={printKot.isPending}
-            onClick={() => printKotNow(false)}
-          >
-            <Printer className="h-4 w-4" />
-            {printKot.isPending ? "Printing…" : "KOT (thermal)"}
-          </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="shrink-0 gap-1.5"
+              disabled={printKot.isPending}
+              onClick={() => printKotNow(false)}
+            >
+              <Printer className="h-4 w-4" />
+              {printKot.isPending ? "Printing…" : "Print KOT"}
+            </Button>
           </div>
         </div>
         {!locked && (
@@ -668,30 +653,17 @@ export function CheckoutPanel({
       <div className="mt-auto flex flex-col gap-3 border-t border-border pt-4">
         <BillSummary bill={bill} giftCardApplied={giftCardApplied} pending={repricing || billQuery.isFetching} />
 
-        <div className="grid grid-cols-2 gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            className="h-11"
-            disabled={!bill}
-            onClick={printBill}
-            title="Prints the bill for the guest. Nothing is charged and the table stays open."
-          >
-            <Printer className="h-4 w-4" />
-            Print bill
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className="h-11"
-            disabled={!bill || printUsb.isPending}
-            onClick={printBillThermal}
-            title="Prints the bill on the thermal printer. Nothing is charged and the cash drawer stays shut."
-          >
-            <Printer className="h-4 w-4" />
-            {printUsb.isPending ? "Printing…" : "Print bill (thermal)"}
-          </Button>
-        </div>
+        <Button
+          type="button"
+          variant="outline"
+          className="h-11 w-full gap-2 font-semibold"
+          disabled={!bill || printUsb.isPending}
+          onClick={printBill}
+          title="Prints the bill on the thermal printer. Nothing is charged and the table stays open."
+        >
+          <Printer className="h-4 w-4" />
+          {printUsb.isPending ? "Printing…" : "Print bill"}
+        </Button>
 
         <Button
           className="h-12 text-base"

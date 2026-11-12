@@ -1,29 +1,7 @@
-// Ported from nodedr-pos's frontend/lib/print.ts: loads the backend's
-// self-printing receipt HTML into a hidden same-page iframe rather than a
-// new tab, so there's no blank/finished tab left for the cashier to notice
-// and close. The OS print dialog still opens exactly as it would for any
-// other page (any printer, or "Save as PDF").
-let printFrame: HTMLIFrameElement | null = null;
-
-function getPrintFrame(): HTMLIFrameElement {
-  if (printFrame) return printFrame;
-  const frame = document.createElement("iframe");
-  frame.setAttribute("aria-hidden", "true");
-  // Positioned far off-screen rather than display:none/width:0 — a 0-width
-  // frame forces the browser to lay out the receipt at 0px before printing,
-  // clipping the right-aligned amount columns. A real box lets it lay out
-  // normally; the huge negative offset keeps it invisible without affecting
-  // page layout.
-  frame.style.position = "fixed";
-  frame.style.top = "-10000px";
-  frame.style.left = "-10000px";
-  frame.style.width = "380px";
-  frame.style.height = "600px";
-  frame.style.border = "none";
-  document.body.appendChild(frame);
-  printFrame = frame;
-  return frame;
-}
+// All bill, receipt, and KOT printing in the POS routes directly to the
+// ESC/POS thermal printer via the backend thermal printer service (USB / Network / Bluetooth).
+// Web/browser iframe printing is disabled so that cashier flows are never interrupted
+// by platform print dialogs.
 
 /** Bill figures the cashier has typed but not yet saved (see receipt route). */
 export type BillQuery = Record<string, string | number | undefined>;
@@ -37,44 +15,14 @@ export function billQueryString(adj: BillQuery = {}): string {
   return s ? `&${s}` : "";
 }
 
-/** Browser print of the bill (open order) or receipt (paid order). Read-only. */
-export function openReceiptPrint(orderId: string, branchId: string, adj: BillQuery = {}) {
-  const frame = getPrintFrame();
-  const printAction = () => {
-    const win = frame.contentWindow;
-    if (!win) return;
-    try {
-      win.focus();
-      win.print();
-    } catch {
-      try {
-        win.postMessage("print", "*");
-      } catch {}
-    }
-  };
-  frame.onload = () => {
-    setTimeout(printAction, 150);
-  };
-  // Force a reload even if printing the same order twice in a row.
-  frame.src = `/api/v1/orders/${orderId}/receipt?branchId=${branchId}${billQueryString(adj)}&t=${Date.now()}`;
+/**
+ * Web/browser print is disabled: all bill, receipt, and KOT printing uses
+ * direct thermal ESC/POS printing. Kept as a safe no-op for backward compatibility.
+ */
+export function openReceiptPrint(_orderId: string, _branchId: string, _adj: BillQuery = {}) {
+  // Web print is disabled — all printing routes directly to the thermal printer
 }
 
-export function openKotPrint(orderId: string, branchId: string) {
-  const frame = getPrintFrame();
-  const printAction = () => {
-    const win = frame.contentWindow;
-    if (!win) return;
-    try {
-      win.focus();
-      win.print();
-    } catch {
-      try {
-        win.postMessage("print", "*");
-      } catch {}
-    }
-  };
-  frame.onload = () => {
-    setTimeout(printAction, 150);
-  };
-  frame.src = `/api/v1/orders/${orderId}/kot?branchId=${branchId}&t=${Date.now()}`;
+export function openKotPrint(_orderId: string, _branchId: string) {
+  // Web print is disabled — all printing routes directly to the thermal printer
 }

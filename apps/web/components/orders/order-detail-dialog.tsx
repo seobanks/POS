@@ -15,8 +15,9 @@ import { ReasonDialog } from "@/components/orders/reason-dialog";
 import { hasPermission, useCurrentUser } from "@/hooks/use-auth";
 import { useAcceptOrder, useOrder, useRejectOrder } from "@/hooks/use-orders";
 import { useSettings } from "@/hooks/use-settings";
+import { usePrintKot, usePrintOrderUsb } from "@/hooks/use-print";
+import { ApiError } from "@/lib/api";
 import { generateWhatsAppBillText } from "@/lib/whatsapp-bill";
-import { openKotPrint, openReceiptPrint } from "@/lib/print";
 import { formatCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -43,6 +44,8 @@ export function OrderDetailDialog({
   const { data: order, isLoading } = useOrder(branchId, open ? orderId : null);
   const accept = useAcceptOrder(branchId);
   const reject = useRejectOrder(branchId);
+  const printUsb = usePrintOrderUsb(branchId);
+  const printKot = usePrintKot(branchId);
   const { note, clear: clearNote, toast } = useNoteToast();
   const canCancelRole = useCanCancelOrders();
   const { data: me } = useCurrentUser();
@@ -273,18 +276,55 @@ export function OrderDetailDialog({
                 <Button
                   variant="outline"
                   className="flex-1"
-                  onClick={() => openReceiptPrint(order.id, branchId)}
+                  disabled={printUsb.isPending}
+                  onClick={() =>
+                    printUsb.mutate(
+                      { orderId: order.id, drawer: false },
+                      {
+                        onSuccess: () =>
+                          toast.success(
+                            order.status === "PAID"
+                              ? "Receipt sent to thermal printer"
+                              : "Bill sent to thermal printer",
+                          ),
+                        onError: (err) =>
+                          toast.error(
+                            err instanceof ApiError
+                              ? err.message
+                              : "Could not print to thermal printer",
+                          ),
+                      },
+                    )
+                  }
                 >
                   <Printer className="mr-1.5 h-4 w-4" />
-                  {order.status === "PAID" ? "Print Receipt" : "Print Bill"}
+                  {printUsb.isPending
+                    ? "Printing…"
+                    : order.status === "PAID"
+                      ? "Print Receipt"
+                      : "Print Bill"}
                 </Button>
                 <Button
                   variant="outline"
                   className="flex-1"
-                  onClick={() => openKotPrint(order.id, branchId)}
+                  disabled={printKot.isPending}
+                  onClick={() =>
+                    printKot.mutate(
+                      { orderId: order.id, reprint: true },
+                      {
+                        onSuccess: () => toast.success("KOT sent to thermal printer"),
+                        onError: (err) =>
+                          toast.error(
+                            err instanceof ApiError
+                              ? err.message
+                              : "Could not print KOT to thermal printer",
+                          ),
+                      },
+                    )
+                  }
                 >
                   <ChefHat className="mr-1.5 h-4 w-4" />
-                  Print KOT
+                  {printKot.isPending ? "Printing…" : "Print KOT"}
                 </Button>
               </div>
             )}
