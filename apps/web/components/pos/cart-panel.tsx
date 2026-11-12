@@ -1,6 +1,6 @@
 "use client";
 
-import { Minus, Plus, ShoppingBag, ShoppingCart, Trash2, Truck, UtensilsCrossed } from "lucide-react";
+import { ChefHat, Minus, Plus, Printer, ShoppingBag, ShoppingCart, Trash2, Truck, UtensilsCrossed } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -34,6 +34,7 @@ export function CartPanel({
   onDecrement,
   onRemove,
   onSubmit,
+  onPrintBill,
   isSubmitting,
   existingOrderNumber,
   onViewExistingOrder,
@@ -56,6 +57,7 @@ export function CartPanel({
   onDecrement: (key: string) => void;
   onRemove: (key: string) => void;
   onSubmit: () => void;
+  onPrintBill?: () => void;
   isSubmitting: boolean;
   existingOrderNumber?: string;
   onViewExistingOrder?: () => void;
@@ -264,13 +266,43 @@ export function CartPanel({
             {formatCurrency(subtotal)}
           </span>
         </div>
-        <Button className="h-11" disabled={!canSubmit} onClick={onSubmit}>
-          {isSubmitting
-            ? "Sending to kitchen…"
-            : existingOrderNumber
-              ? "Add to order & send to kitchen"
-              : "Send to kitchen"}
-        </Button>
+        {orderType === "TAKEAWAY" ? (
+          <div className="flex flex-col gap-2">
+            <Button
+              className="h-12 w-full text-base font-bold bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 active:scale-[0.98] gap-2"
+              disabled={!canSubmit}
+              onClick={onPrintBill ?? onSubmit}
+            >
+              <Printer className="h-5 w-5" />
+              {isSubmitting
+                ? "Processing…"
+                : existingOrderNumber
+                  ? "Add to order & print bill"
+                  : "Print bill"}
+            </Button>
+            <Button
+              variant="outline"
+              className="h-11 w-full text-sm font-semibold border-border hover:bg-secondary active:scale-[0.98] gap-2"
+              disabled={!canSubmit}
+              onClick={onSubmit}
+            >
+              <ChefHat className="h-4 w-4 text-muted-foreground" />
+              {isSubmitting
+                ? "Sending to kitchen…"
+                : existingOrderNumber
+                  ? "Add to order & send to kitchen"
+                  : "Send to kitchen"}
+            </Button>
+          </div>
+        ) : (
+          <Button className="h-11" disabled={!canSubmit} onClick={onSubmit}>
+            {isSubmitting
+              ? "Sending to kitchen…"
+              : existingOrderNumber
+                ? "Add to order & send to kitchen"
+                : "Send to kitchen"}
+          </Button>
+        )}
       </div>
     </div>
   );

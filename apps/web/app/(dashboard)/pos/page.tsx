@@ -17,6 +17,8 @@ import { ProductGrid } from "@/components/pos/product-grid";
 import { Card } from "@/components/ui/card";
 import { useBranch } from "@/hooks/use-branch";
 import type { MenuItem } from "@/hooks/use-menu";
+import { usePrintOrderUsb } from "@/hooks/use-print";
+import { openReceiptPrint } from "@/lib/print";
 import {
   useAddOrderItems,
   useCreateOrder,
@@ -100,6 +102,7 @@ function PosPageInner() {
 
   const createOrder = useCreateOrder(branchId);
   const addOrderItems = useAddOrderItems(branchId);
+  const printUsb = usePrintOrderUsb(branchId);
   const openBillsQuery = useOpenOrdersForTable(
     branchId,
     orderType === "DINE_IN" ? tableId || null : null,
@@ -170,7 +173,7 @@ function PosPageInner() {
 
   const removeLine = (key: string) => setLines((prev) => prev.filter((l) => l.key !== key));
 
-  const handleSubmit = () => {
+  const handleSubmit = (printBill = false) => {
     if (checkingTable) return;
     const sentTableId = tableId;
     const items = lines.map((l) => ({
@@ -186,16 +189,34 @@ function PosPageInner() {
         : {}),
     }));
 
+    const afterSuccess = (
+      order: CreatedOrder,
+      message: string,
+      customer: OpenOrder["customer"] = null,
+    ) => {
+      setDrafts((d) => clearDraft(d, sentTableId));
+      setActiveCustomer(customer);
+      setActiveOrder(order);
+      setCartOpen(true);
+      toast.success(message);
+      if (printBill && branchId) {
+        openReceiptPrint(order.id, branchId);
+        printUsb.mutate({ orderId: order.id, drawer: false });
+      }
+    };
+
     if (existingOrder) {
       addOrderItems.mutate(
         { orderId: existingOrder.id, dto: { items } },
         {
-          onSuccess: (order) => {
-            setDrafts((d) => clearDraft(d, sentTableId));
-            setActiveCustomer(existingOrder.customer);
-            setActiveOrder(order);
-            toast.success(`Added to order #${order.orderNumber} — sent to kitchen`);
-          },
+          onSuccess: (order) =>
+            afterSuccess(
+              order,
+              printBill
+                ? `Added to order #${order.orderNumber} — printing bill`
+                : `Added to order #${order.orderNumber} — sent to kitchen`,
+              existingOrder.customer,
+            ),
           onError: (err) => toast.error(err instanceof ApiError ? err.message : "Could not add items"),
         },
       );
@@ -213,13 +234,14 @@ function PosPageInner() {
         items,
       },
       {
-        onSuccess: (order) => {
-          setDrafts((d) => clearDraft(d, sentTableId));
-          setActiveCustomer(null);
-          setActiveOrder(order);
-          setCartOpen(true);
-          toast.success(`Order #${order.orderNumber} sent to kitchen`);
-        },
+        onSuccess: (order) =>
+          afterSuccess(
+            order,
+            printBill
+              ? `Order #${order.orderNumber} created — printing bill`
+              : `Order #${order.orderNumber} sent to kitchen`,
+            null,
+          ),
         onError: (err) => toast.error(err instanceof ApiError ? err.message : "Could not create order"),
       },
     );
@@ -335,7 +357,8 @@ function PosPageInner() {
                 onIncrement={(key) => updateQuantity(key, 1)}
                 onDecrement={(key) => updateQuantity(key, -1)}
                 onRemove={removeLine}
-                onSubmit={handleSubmit}
+                onSubmit={() => handleSubmit(false)}
+                onPrintBill={() => handleSubmit(true)}
                 isSubmitting={createOrder.isPending || addOrderItems.isPending}
                 existingOrderNumber={existingOrder?.orderNumber}
                 onViewExistingOrder={existingOrder ? viewExistingOrder : undefined}
