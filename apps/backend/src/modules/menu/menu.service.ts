@@ -22,9 +22,17 @@ export class MenuService {
 
   listCategories(branchId: string) {
     return this.prisma.menuCategory.findMany({
-      where: { branchId },
+      where: { branchId, isActive: true },
       orderBy: { sortOrder: 'asc' },
-      include: { _count: { select: { items: true } } },
+      include: {
+        _count: {
+          select: {
+            items: {
+              where: { isActive: true },
+            },
+          },
+        },
+      },
     });
   }
 
@@ -43,7 +51,26 @@ export class MenuService {
 
   async deleteCategory(branchId: string, id: string) {
     await this.assertCategoryInBranch(branchId, id);
-    await this.prisma.menuCategory.delete({ where: { id } });
+    const activeItemsCount = await this.prisma.menuItem.count({
+      where: { categoryId: id, isActive: true },
+    });
+    if (activeItemsCount > 0) {
+      throw new BadRequestException(
+        'Cannot delete category with items — remove or reassign its items first',
+      );
+    }
+    try {
+      await this.prisma.menuCategory.delete({ where: { id } });
+    } catch (err: any) {
+      if (err?.code === 'P2003' || err?.message?.includes('Foreign key constraint')) {
+        await this.prisma.menuCategory.update({
+          where: { id },
+          data: { isActive: false },
+        });
+        return { ok: true };
+      }
+      throw err;
+    }
     return { ok: true };
   }
 
@@ -70,7 +97,11 @@ export class MenuService {
 
   listItems(branchId: string, categoryId?: string) {
     return this.prisma.menuItem.findMany({
-      where: { branchId, ...(categoryId ? { categoryId } : {}) },
+      where: {
+        branchId,
+        isActive: true,
+        ...(categoryId ? { categoryId } : {}),
+      },
       orderBy: { sortOrder: 'asc' },
       include: {
         category: true,
@@ -178,7 +209,27 @@ export class MenuService {
 
   async deleteItem(branchId: string, id: string) {
     await this.getItem(branchId, id);
-    await this.prisma.menuItem.delete({ where: { id } });
+    try {
+      // 1. Clean up any combo references where this item is a combo component
+      await this.prisma.comboComponent.deleteMany({
+        where: { componentItemId: id },
+      });
+
+      // 2. Attempt hard delete from database
+      await this.prisma.menuItem.delete({ where: { id } });
+    } catch (err: any) {
+      // P2003: Foreign key constraint violation (e.g. order_items references this menuItemId).
+      // We must preserve historical order records and accounting history, so we soft-delete
+      // by setting isActive = false.
+      if (err?.code === 'P2003' || err?.message?.includes('Foreign key constraint')) {
+        await this.prisma.menuItem.update({
+          where: { id },
+          data: { isActive: false },
+        });
+        return { ok: true };
+      }
+      throw err;
+    }
     return { ok: true };
   }
 

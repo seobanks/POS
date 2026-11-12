@@ -121,7 +121,10 @@ export function useCreateMenuItem(branchId: string | null) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (dto: MenuItemDto) => api.post(`/menu/items?branchId=${branchId}`, dto),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["menu", "items", branchId] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["menu", "items", branchId] });
+      queryClient.invalidateQueries({ queryKey: ["menu", "categories", branchId] });
+    },
   });
 }
 
@@ -130,7 +133,10 @@ export function useUpdateMenuItem(branchId: string | null) {
   return useMutation({
     mutationFn: ({ id, dto }: { id: string; dto: Partial<MenuItemDto> }) =>
       api.patch(`/menu/items/${id}?branchId=${branchId}`, dto),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["menu", "items", branchId] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["menu", "items", branchId] });
+      queryClient.invalidateQueries({ queryKey: ["menu", "categories", branchId] });
+    },
   });
 }
 
@@ -138,7 +144,10 @@ export function useDeleteMenuItem(branchId: string | null) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.delete(`/menu/items/${id}?branchId=${branchId}`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["menu", "items", branchId] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["menu", "items", branchId] });
+      queryClient.invalidateQueries({ queryKey: ["menu", "categories", branchId] });
+    },
   });
 }
 
