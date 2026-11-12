@@ -239,6 +239,14 @@ function PosPageInner() {
     setScheduledFor("");
   };
 
+  useEffect(() => {
+    const handleNewSale = () => {
+      resetForNewOrder();
+    };
+    window.addEventListener("pos:new-sale", handleNewSale);
+    return () => window.removeEventListener("pos:new-sale", handleNewSale);
+  }, []);
+
   const handleTablePick = (table: RestaurantTable) => setTableId(table.id);
 
   // Click-to-order: for a fresh dine-in ticket, land on a visual table grid
