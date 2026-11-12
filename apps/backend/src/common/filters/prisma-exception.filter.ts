@@ -45,6 +45,10 @@ export class PrismaExceptionFilter implements ExceptionFilter {
           return new BadRequestException(
             'This action references something that does not exist or was already removed.',
           );
+        case 'P2014':
+          return new BadRequestException(
+            'This record cannot be removed because it is referenced by other records.',
+          );
         default:
           return new InternalServerErrorException(
             'Something went wrong. Please try again.',

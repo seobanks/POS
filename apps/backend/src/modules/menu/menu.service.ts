@@ -61,15 +61,11 @@ export class MenuService {
     }
     try {
       await this.prisma.menuCategory.delete({ where: { id } });
-    } catch (err: any) {
-      if (err?.code === 'P2003' || err?.message?.includes('Foreign key constraint')) {
-        await this.prisma.menuCategory.update({
-          where: { id },
-          data: { isActive: false },
-        });
-        return { ok: true };
-      }
-      throw err;
+    } catch {
+      await this.prisma.menuCategory.update({
+        where: { id },
+        data: { isActive: false },
+      });
     }
     return { ok: true };
   }
@@ -217,18 +213,15 @@ export class MenuService {
 
       // 2. Attempt hard delete from database
       await this.prisma.menuItem.delete({ where: { id } });
-    } catch (err: any) {
-      // P2003: Foreign key constraint violation (e.g. order_items references this menuItemId).
-      // We must preserve historical order records and accounting history, so we soft-delete
-      // by setting isActive = false.
-      if (err?.code === 'P2003' || err?.message?.includes('Foreign key constraint')) {
-        await this.prisma.menuItem.update({
-          where: { id },
-          data: { isActive: false },
-        });
-        return { ok: true };
-      }
-      throw err;
+    } catch {
+      // If hard delete fails for any reason (e.g. Prisma P2014, P2003, existing order_items,
+      // recipe lines, or inventory logs), we safely soft-delete by setting isActive = false.
+      // This preserves historical accounting & sales records while immediately removing
+      // the item from active menus.
+      await this.prisma.menuItem.update({
+        where: { id },
+        data: { isActive: false },
+      });
     }
     return { ok: true };
   }
