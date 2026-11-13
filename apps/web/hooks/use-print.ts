@@ -1,8 +1,15 @@
 "use client";
 
+import { useCallback, useEffect, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { billQueryString, type BillQuery } from "@/lib/print";
+import {
+  billQueryString,
+  decodeEscposBase64,
+  sendRawToWebUsbDevice,
+  type BillQuery,
+} from "@/lib/print";
+import { getSharedSocket, releaseSharedSocket } from "@/lib/realtime-socket";
 
 export interface PrinterDiagnostics {
   connection: "USB" | "NETWORK";
@@ -73,3 +80,96 @@ export function useOpenCashDrawer() {
       api.post<{ ok: true }>(`/orders/print/drawer${branchId ? `?branchId=${branchId}` : ""}`),
   });
 }
+
+export interface PrintJobEvent {
+  id: string;
+  branchId: string;
+  stationId?: string | null;
+  stationName?: string;
+  targetPrinter?: string;
+  jobType: "KOT" | "RECEIPT";
+  ticketNumber?: string;
+  rawEscposBase64: string;
+  createdAt: string;
+}
+
+export interface UsePrintBridgeOptions {
+  enabled?: boolean;
+  filterPrinter?: string | string[];
+  filterJobType?: "KOT" | "RECEIPT";
+  onJob?: (job: PrintJobEvent, rawBytes: Uint8Array) => Promise<boolean | void> | boolean | void;
+}
+
+export { decodeEscposBase64, sendRawToWebUsbDevice };
+
+/**
+ * Web Print Bridge hook: enables client terminals (e.g., cashier POS or kitchen tablets)
+ * to listen for realtime `print.job` spool events and forward jobs to local WebUSB or raw printers.
+ */
+export function useWebPrintBridge(
+  branchId: string | null,
+  options: UsePrintBridgeOptions = {},
+) {
+  const { enabled = true, filterPrinter, filterJobType, onJob } = options;
+  const [lastJob, setLastJob] = useState<PrintJobEvent | null>(null);
+  const [usbDevice, setUsbDevice] = useState<any>(null);
+  const [isSupported, setIsSupported] = useState(false);
+
+  useEffect(() => {
+    setIsSupported(typeof navigator !== "undefined" && "usb" in navigator);
+  }, []);
+
+  const requestUsbPrinter = useCallback(async () => {
+    if (typeof navigator === "undefined" || !("usb" in (navigator as any))) {
+      throw new Error("WebUSB is not supported in this browser");
+    }
+    const usb = (navigator as any).usb;
+    const device = await usb.requestDevice({ filters: [] });
+    setUsbDevice(device);
+    return device;
+  }, []);
+
+  useEffect(() => {
+    if (!branchId || !enabled) return;
+
+    const socket = getSharedSocket(branchId);
+    if (!socket) return;
+
+    const handlePrintJob = async (job: PrintJobEvent) => {
+      if (filterJobType && job.jobType !== filterJobType) return;
+      if (filterPrinter) {
+        const allowed = Array.isArray(filterPrinter) ? filterPrinter : [filterPrinter];
+        if (job.targetPrinter && !allowed.includes(job.targetPrinter)) return;
+      }
+
+      setLastJob(job);
+      const rawBytes = decodeEscposBase64(job.rawEscposBase64);
+
+      if (onJob) {
+        const handled = await onJob(job, rawBytes);
+        if (handled === true) return;
+      }
+
+      if (usbDevice) {
+        await sendRawToWebUsbDevice(usbDevice, rawBytes);
+      }
+    };
+
+    socket.on("print.job", handlePrintJob);
+
+    return () => {
+      socket.off("print.job", handlePrintJob);
+      releaseSharedSocket(socket);
+    };
+  }, [branchId, enabled, filterPrinter, filterJobType, onJob, usbDevice]);
+
+  return {
+    lastJob,
+    usbDevice,
+    isSupported,
+    requestUsbPrinter,
+  };
+}
+
+export const usePrintBridge = useWebPrintBridge;
+export const usePrintSpooler = useWebPrintBridge;

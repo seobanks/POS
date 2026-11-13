@@ -9,6 +9,7 @@ import type {
 } from "@nodedr-restaurant/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { cacheTables, getCachedTables } from "@/lib/offline-db";
 
 export interface RestaurantTable {
   id: string;
@@ -38,7 +39,26 @@ export interface Floor {
 export function useFloors(branchId: string | null) {
   return useQuery({
     queryKey: ["floors", branchId],
-    queryFn: () => api.get<Floor[]>(`/tables/floors?branchId=${branchId}`),
+    queryFn: async () => {
+      try {
+        const floors = await api.get<Floor[]>(`/tables/floors?branchId=${branchId}`);
+        if (branchId && floors) {
+          void cacheTables(branchId, {
+            floors,
+            tables: floors.flatMap((f) => f.tables),
+          });
+        }
+        return floors;
+      } catch (err) {
+        if (branchId) {
+          const cached = await getCachedTables(branchId);
+          if (cached?.floors && cached.floors.length > 0) {
+            return cached.floors as Floor[];
+          }
+        }
+        throw err;
+      }
+    },
     enabled: !!branchId,
     refetchInterval: 10_000,
   });

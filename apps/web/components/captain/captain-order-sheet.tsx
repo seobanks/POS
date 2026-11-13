@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { OfflineIndicator } from "@/components/pos/offline-indicator";
 import { useBranch } from "@/hooks/use-branch";
 import { useFloors } from "@/hooks/use-tables";
 import { useOpenOrdersForTable } from "@/hooks/use-orders";
@@ -150,37 +151,40 @@ export function CaptainOrderSheet({ tableId, onBack }: CaptainOrderSheetProps) {
           </div>
         </div>
 
-        {/* View Switcher if running order is present */}
-        {activeOrder && (
-          <div className="flex items-center rounded-xl bg-secondary p-1 border border-border/60 shrink-0">
-            <button
-              type="button"
-              onClick={() => setActiveTab("menu")}
-              className={cn(
-                "px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5",
-                activeTab === "menu"
-                  ? "bg-background text-foreground shadow-xs"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              <UtensilsCrossed className="h-3.5 w-3.5" />
-              <span>Menu</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab("running")}
-              className={cn(
-                "px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5",
-                activeTab === "running"
-                  ? "bg-background text-foreground shadow-xs"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              <Receipt className="h-3.5 w-3.5" />
-              <span>Running</span>
-            </button>
-          </div>
-        )}
+        <div className="flex items-center gap-2 shrink-0">
+          <OfflineIndicator branchId={branchId} />
+          {/* View Switcher if running order is present */}
+          {activeOrder && (
+            <div className="flex items-center rounded-xl bg-secondary p-1 border border-border/60 shrink-0">
+              <button
+                type="button"
+                onClick={() => setActiveTab("menu")}
+                className={cn(
+                  "px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5",
+                  activeTab === "menu"
+                    ? "bg-background text-foreground shadow-xs"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <UtensilsCrossed className="h-3.5 w-3.5" />
+                <span>Menu</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("running")}
+                className={cn(
+                  "px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5",
+                  activeTab === "running"
+                    ? "bg-background text-foreground shadow-xs"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <Receipt className="h-3.5 w-3.5" />
+                <span>Running</span>
+              </button>
+            </div>
+          )}
+        </div>
       </header>
 
       {/* Guest count quick picker (if creating a new order) */}

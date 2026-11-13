@@ -12,11 +12,13 @@ import { clearDraft, switchTableDraft, type Drafts } from "@/lib/pos-drafts";
 import { CheckoutPanel } from "@/components/pos/checkout-panel";
 import { KitchenProgressWidget } from "@/components/pos/kitchen-progress-widget";
 import { ModifierPickerDialog } from "@/components/pos/modifier-picker-dialog";
+import { OfflineIndicator } from "@/components/pos/offline-indicator";
 import { PosTablePicker } from "@/components/pos/pos-table-picker";
 import { ProductGrid } from "@/components/pos/product-grid";
 import { Card } from "@/components/ui/card";
 import { useBranch } from "@/hooks/use-branch";
 import type { MenuItem } from "@/hooks/use-menu";
+import { useOfflinePos } from "@/hooks/use-offline-pos";
 import { usePrintOrderUsb } from "@/hooks/use-print";
 import {
   useAddOrderItems,
@@ -41,6 +43,7 @@ export default function PosPage() {
 function PosPageInner() {
   const { branchId, isLoading: branchLoading } = useBranch();
   const { note, clear: clearNote, toast } = useNoteToast();
+  const { isOnline, saveOfflineOrder } = useOfflinePos({ branchId });
   const floorsQuery = useFloors(branchId);
   const floors = floorsQuery.data;
   const tables = floors?.flatMap((f) => f.tables) ?? [];
@@ -230,6 +233,51 @@ function PosPageInner() {
       return;
     }
 
+    // Offline order placement when disconnected
+    if ((!isOnline || (typeof navigator !== "undefined" && !navigator.onLine)) && branchId) {
+      void (async () => {
+        try {
+          const total = lines.reduce((s, l) => s + l.unitPrice * l.quantity, 0);
+          const queued = await saveOfflineOrder({
+            branchId,
+            orderType,
+            tableId: orderType === "DINE_IN" ? tableId : undefined,
+            items: lines.map((l) => ({
+              menuItemId: l.menuItemId,
+              nameSnapshot: l.name,
+              quantity: l.quantity,
+              unitPrice: l.unitPrice,
+              modifiers: l.modifierIds.map((id) => ({
+                modifierId: id,
+                nameSnapshot: l.modifierLabel || "Modifier",
+                price: 0,
+              })),
+            })),
+          });
+
+          afterSuccess(
+            {
+              id: queued.id,
+              orderNumber: queued.offlineOrderNumber,
+              subtotal: String(total),
+              taxAmount: "0",
+              discountAmount: "0",
+              tipAmount: "0",
+              loyaltyPointsRedeemed: 0,
+              loyaltyDiscountAmount: "0",
+              totalAmount: String(total),
+              status: "OPEN",
+            },
+            `Offline order #${queued.offlineOrderNumber} saved locally! Will sync when reconnected.`,
+            null,
+          );
+        } catch {
+          toast.error("Failed to save offline order to local database");
+        }
+      })();
+      return;
+    }
+
     createOrder.mutate(
       {
         type: orderType,
@@ -249,7 +297,52 @@ function PosPageInner() {
               : `Order #${order.orderNumber} sent to kitchen`,
             null,
           ),
-        onError: (err) => toast.error(err instanceof ApiError ? err.message : "Could not create order"),
+        onError: (err) => {
+          // If network failed during online attempt, offer offline fallback
+          if (branchId && typeof navigator !== "undefined" && !navigator.onLine) {
+            void (async () => {
+              try {
+                const total = lines.reduce((s, l) => s + l.unitPrice * l.quantity, 0);
+                const queued = await saveOfflineOrder({
+                  branchId,
+                  orderType,
+                  tableId: orderType === "DINE_IN" ? tableId : undefined,
+                  items: lines.map((l) => ({
+                    menuItemId: l.menuItemId,
+                    nameSnapshot: l.name,
+                    quantity: l.quantity,
+                    unitPrice: l.unitPrice,
+                    modifiers: l.modifierIds.map((id) => ({
+                      modifierId: id,
+                      nameSnapshot: l.modifierLabel || "Modifier",
+                      price: 0,
+                    })),
+                  })),
+                });
+                afterSuccess(
+                  {
+                    id: queued.id,
+                    orderNumber: queued.offlineOrderNumber,
+                    subtotal: String(total),
+                    taxAmount: "0",
+                    discountAmount: "0",
+                    tipAmount: "0",
+                    loyaltyPointsRedeemed: 0,
+                    loyaltyDiscountAmount: "0",
+                    totalAmount: String(total),
+                    status: "OPEN",
+                  },
+                  `Network lost — saved offline as #${queued.offlineOrderNumber}!`,
+                  null,
+                );
+              } catch {
+                toast.error("Could not create order or save offline");
+              }
+            })();
+          } else {
+            toast.error(err instanceof ApiError ? err.message : "Could not create order");
+          }
+        },
       },
     );
   };
@@ -299,16 +392,19 @@ function PosPageInner() {
         <div className="min-w-0 flex-1">
           <KitchenProgressWidget branchId={branchId} />
         </div>
-        <a
-          href="/customer-display"
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-          title="Opens the customer-facing screen in a new window — drag it to the second monitor"
-        >
-          <MonitorSmartphone className="h-3.5 w-3.5" />
-          Customer display
-        </a>
+        <div className="flex items-center gap-2 shrink-0">
+          <OfflineIndicator branchId={branchId} />
+          <a
+            href="/customer-display"
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+            title="Opens the customer-facing screen in a new window — drag it to the second monitor"
+          >
+            <MonitorSmartphone className="h-3.5 w-3.5" />
+            Customer display
+          </a>
+        </div>
       </div>
 
       <BranchNotice />

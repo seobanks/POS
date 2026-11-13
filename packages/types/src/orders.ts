@@ -271,3 +271,53 @@ export type RejectOrderDto = z.infer<typeof rejectOrderSchema>;
 
 export const publicRequestSchema = z.object({ type: z.enum(["WAITER", "BILL"]) });
 export type PublicRequestDto = z.infer<typeof publicRequestSchema>;
+
+// Offline-First POS Engine sync schemas
+export const offlineOrderItemModifierSchema = z.object({
+  modifierId: z.string().optional(),
+  nameSnapshot: z.string(),
+  price: z.number().default(0),
+});
+export type OfflineOrderItemModifierDto = z.infer<typeof offlineOrderItemModifierSchema>;
+
+export const offlineOrderItemSchema = z.object({
+  menuItemId: z.string(),
+  nameSnapshot: z.string(),
+  quantity: z.number().int().positive(),
+  unitPrice: z.number().nonnegative(),
+  taxRate: z.number().nonnegative().optional(),
+  kitchenNote: z.string().optional().nullable(),
+  modifiers: z.array(offlineOrderItemModifierSchema).optional().default([]),
+});
+export type OfflineOrderItemDto = z.infer<typeof offlineOrderItemSchema>;
+
+export const offlineOrderPaymentSchema = z.object({
+  method: z.string(),
+  amount: z.number().positive(),
+});
+export type OfflineOrderPaymentDto = z.infer<typeof offlineOrderPaymentSchema>;
+
+export const queuedOfflineOrderSchema = z.object({
+  id: z.string(),
+  offlineOrderNumber: z.string(),
+  branchId: z.string(),
+  orderType: z.enum(["DINE_IN", "TAKEAWAY", "DELIVERY"]),
+  tableId: z.string().optional().nullable(),
+  guestCount: z.number().int().positive().optional().nullable(),
+  notes: z.string().optional().nullable(),
+  items: z.array(offlineOrderItemSchema),
+  payments: z.array(offlineOrderPaymentSchema).optional().default([]),
+  createdAt: z.string(),
+  status: z.enum(["PENDING_SYNC", "SYNCED", "FAILED"]).optional(),
+  syncError: z.string().optional(),
+  serverOrderId: z.string().optional(),
+  serverOrderNumber: z.string().optional(),
+});
+export type QueuedOfflineOrderDto = z.infer<typeof queuedOfflineOrderSchema>;
+
+export const offlineSyncSchema = z.object({
+  branchId: z.string().optional(),
+  orders: z.array(queuedOfflineOrderSchema),
+});
+export type OfflineSyncDto = z.infer<typeof offlineSyncSchema>;
+

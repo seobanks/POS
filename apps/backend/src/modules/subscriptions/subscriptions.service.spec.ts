@@ -4,6 +4,7 @@ import { BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import type { LicensePayload } from '@nodedr-restaurant/types';
+import { PrismaService } from '../../prisma/prisma.service';
 import { LicenseService } from './license.service';
 import { SubscriptionsService } from './subscriptions.service';
 
@@ -38,6 +39,15 @@ describe('SubscriptionsService', () => {
       providers: [
         SubscriptionsService,
         LicenseService,
+        {
+          provide: PrismaService,
+          useValue: {
+            restaurant: {
+              findFirst: jest.fn(),
+              update: jest.fn(),
+            },
+          },
+        },
         {
           provide: ConfigService,
           useValue: {
@@ -79,6 +89,7 @@ describe('SubscriptionsService', () => {
 
   describe('license activation and status lifecycle', () => {
     it('should return unlicensed status when no license is configured', async () => {
+      jest.spyOn(service as any, 'autoProvisionLicense').mockResolvedValue(null);
       const status = await service.getLicenseStatus();
       expect(status.activated).toBe(false);
       expect(status.status).toBe('UNLICENSED');

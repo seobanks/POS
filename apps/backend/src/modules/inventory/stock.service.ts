@@ -58,7 +58,7 @@ export class StockService {
     ingredientId: string,
     quantity: number,
     opts: {
-      type: StockMovementType;
+      type: StockMovementType | 'SALE';
       note?: string;
       userId: string;
       allowNegative?: boolean;
@@ -106,6 +106,10 @@ export class StockService {
     const portions: StockConsumptionPortion[] = [];
     let remaining = quantity;
 
+    const movementType = (opts.type === 'SALE'
+      ? ('CONSUMPTION' as StockMovementType)
+      : opts.type) as StockMovementType;
+
     for (const batch of batches) {
       if (remaining <= 0) break;
       const consumeQty = Math.min(remaining, Number(batch.quantityRemaining));
@@ -123,7 +127,7 @@ export class StockService {
           branchId,
           ingredientId,
           batchId: batch.id,
-          type: opts.type,
+          type: movementType,
           quantity: -consumeQty,
           note: opts.note,
           createdById: opts.userId,
@@ -146,7 +150,7 @@ export class StockService {
         data: {
           branchId,
           ingredientId,
-          type: opts.type,
+          type: movementType,
           quantity: -remaining,
           note: opts.note,
           createdById: opts.userId,

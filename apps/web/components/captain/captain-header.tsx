@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { OfflineIndicator } from "@/components/pos/offline-indicator";
 import {
   Sheet,
   SheetContent,
@@ -148,6 +149,7 @@ export function CaptainHeader({
 
         {/* Right: Waiter Profile, Alerts, Quick Refresh */}
         <div className="flex items-center gap-2 shrink-0">
+          <OfflineIndicator branchId={branchId} />
           {/* Table Requests Alert Button (Flashing if pending) */}
           <Sheet open={alertsOpen} onOpenChange={setAlertsOpen}>
             <SheetTrigger

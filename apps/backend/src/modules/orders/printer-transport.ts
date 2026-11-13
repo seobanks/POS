@@ -5,31 +5,38 @@ import { PrinterNotFoundError, sendRaw } from './escpos-usb';
 import { printToWindowsSpooler } from './escpos-windows';
 
 export interface BranchPrinterTarget {
-  printerConnection: string;
-  printerHost: string | null;
+  printerConnection?: string;
+  printerHost?: string | null;
   printerPort: number;
+  printerTransport?: string;
+  printerIp?: string | null;
+  printerName?: string | null;
 }
 
 export async function sendToBranchPrinter(
   branch: BranchPrinterTarget,
   buffer: Buffer,
 ): Promise<void> {
-  if (branch.printerConnection === 'NETWORK') {
-    if (!branch.printerHost) {
+  const connection = branch.printerTransport || branch.printerConnection || 'USB';
+  const host = branch.printerIp || branch.printerHost;
+  const port = branch.printerPort || 9100;
+
+  if (connection === 'NETWORK') {
+    if (!host) {
       throw new PrinterNotFoundError(
         'Network printing is selected but no printer address is set - add it in Settings > Printer',
       );
     }
     return sendViaNetwork(
-      { host: branch.printerHost, port: branch.printerPort },
+      { host, port },
       buffer,
     );
   }
   if (
-    branch.printerConnection === 'WINDOWS' ||
-    branch.printerConnection === 'SPOOLER'
+    connection === 'WINDOWS' ||
+    connection === 'SPOOLER'
   ) {
-    const res = await printToWindowsSpooler(branch.printerHost, buffer);
+    const res = await printToWindowsSpooler(branch.printerName || host, buffer);
     if (!res.success) {
       throw new PrinterNotFoundError(
         res.error || 'Failed to print via Windows Print Spooler',

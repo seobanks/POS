@@ -2,13 +2,11 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
-  ServiceUnavailableException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RealtimeGateway } from '../../realtime/realtime.gateway';
 import { buildKotEscPosJob, resolveProfile } from './escpos-receipt';
-import { PrinterNotFoundError } from './escpos-usb';
-import { sendToBranchPrinter } from './printer-transport';
+import { sendToBranchPrinter, type BranchPrinterTarget } from './printer-transport';
 
 export interface KotPrintResult {
   ok: true;
@@ -106,7 +104,7 @@ export class KotPrintService {
         if (claimed.count === 0) continue; // someone else just printed it
       }
 
-      const branch = kot.order.branch;
+      const branch = kot.order.branch as any;
       const copy = reprint ? kot.printedCount : 0; // REPRINT #n on paper
       const job = buildKotEscPosJob({
         branchName: branch.name,
@@ -146,35 +144,74 @@ export class KotPrintService {
         },
       });
 
-      try {
-        await sendToBranchPrinter(branch, job.buffer);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Printing failed';
-        await this.prisma.kot.update({
-          where: { id: kot.id },
-          data: {
-            lastPrintError: message.slice(0, 300),
-            // Release the first-print claim so a retry can print it.
-            ...(reprint ? {} : { printedCount: 0, printedAt: null }),
-          },
-        });
-        if (err instanceof PrinterNotFoundError) {
-          throw new ServiceUnavailableException(err.message);
+      // Build resolved printer target for the station
+      let target: BranchPrinterTarget;
+      if (kot.station?.printerName) {
+        const rawStationPrinter = kot.station.printerName.trim();
+        const isIp = /^(\d{1,3}\.){3}\d{1,3}(:\d+)?$/.test(rawStationPrinter);
+        if (isIp) {
+          const [parsedIp, rawPort] = rawStationPrinter.split(':');
+          const parsedPort = rawPort ? parseInt(rawPort, 10) : 9100;
+          target = {
+            printerConnection: 'NETWORK',
+            printerTransport: 'NETWORK',
+            printerHost: parsedIp,
+            printerIp: parsedIp,
+            printerPort: parsedPort || 9100,
+          };
+        } else {
+          target = {
+            printerConnection: branch.printerConnection || 'WINDOWS',
+            printerTransport: branch.printerTransport || branch.printerConnection || 'WINDOWS',
+            printerHost: branch.printerHost || null,
+            printerIp: branch.printerIp || branch.printerHost || null,
+            printerPort: branch.printerPort || 9100,
+            printerName: kot.station.printerName,
+          };
         }
-        throw new ServiceUnavailableException(
-          `Kitchen printer error: ${message}`,
-        );
+      } else {
+        target = {
+          printerConnection: branch.printerConnection || branch.printerTransport || 'USB',
+          printerTransport: branch.printerTransport || branch.printerConnection || 'USB',
+          printerHost: branch.printerHost || branch.printerIp || null,
+          printerIp: branch.printerIp || branch.printerHost || null,
+          printerPort: branch.printerPort || 9100,
+          printerName: branch.printerName || null,
+        };
+      }
+
+      let printError: string | null = null;
+      try {
+        await sendToBranchPrinter(target, job.buffer);
+      } catch (err) {
+        // Handle errors cleanly (if printer is unreachable or in serverless cloud, don't crash)
+        printError = err instanceof Error ? err.message : 'Printing failed';
       }
 
       const updated = await this.prisma.kot.update({
         where: { id: kot.id },
         data: {
-          lastPrintError: null,
+          lastPrintError: printError ? printError.slice(0, 300) : null,
           ...(reprint
             ? { printedCount: { increment: 1 }, printedAt: new Date() }
             : {}),
         },
       });
+
+      // Always emit a print.job event to the branch room via RealtimeGateway
+      this.realtime.emitToBranch(branchId, 'print.job', {
+        id: kot.id,
+        branchId,
+        stationId: kot.stationId,
+        stationName: kot.station?.name ?? 'Kitchen',
+        targetPrinter:
+          kot.station?.printerName || branch.printerName || 'Default KOT Printer',
+        jobType: 'KOT',
+        ticketNumber: kot.ticketNumber,
+        rawEscposBase64: job.buffer.toString('base64'),
+        createdAt: new Date().toISOString(),
+      });
+
       result.printed.push({
         id: kot.id,
         ticketNumber: kot.ticketNumber,

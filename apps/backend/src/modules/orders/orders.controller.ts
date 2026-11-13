@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   ForbiddenException,
@@ -21,6 +22,7 @@ import {
   cancelOrderSchema,
   deleteOrdersSchema,
   mergeOrdersSchema,
+  offlineSyncSchema,
   refundSchema,
   rejectOrderSchema,
   removeOrderItemSchema,
@@ -28,6 +30,7 @@ import {
   updateOrderSchema,
   type BillPreviewDto,
   type CheckoutDto,
+  type OfflineSyncDto,
   type RemoveOrderItemDto,
   type UpdateOrderDto,
   type UpdateOrderItemDto,
@@ -58,6 +61,7 @@ import {
   sendToBranchPrinter,
   type BranchPrinterTarget,
 } from './printer-transport';
+import { RealtimeGateway } from '../../realtime/realtime.gateway';
 import { OrdersService } from './orders.service';
 import { buildKotHtml } from './kot.html';
 import { buildReceiptHtml } from './receipt.html';
@@ -176,6 +180,7 @@ export class OrdersController {
     private readonly branchAccess: BranchAccessService,
     private readonly kotPrint: KotPrintService,
     private readonly verifactu: VerifactuService,
+    private readonly realtime: RealtimeGateway,
   ) {}
 
   @Auth('orders.create')
@@ -227,6 +232,22 @@ export class OrdersController {
   ) {
     await this.branchAccess.assertAccess(user.restaurantId, branchId);
     return this.ordersService.createOrder(branchId, user.id, body as never);
+  }
+
+  @Auth('orders.create')
+  @Post('offline-sync')
+  @UsePipes(new ZodValidationPipe(offlineSyncSchema))
+  async syncOffline(
+    @CurrentUser() user: SessionUser,
+    @Query('branchId') queryBranchId: string | undefined,
+    @Body() body: OfflineSyncDto,
+  ) {
+    const branchId = body.branchId || queryBranchId;
+    if (!branchId) {
+      throw new BadRequestException('branchId is required');
+    }
+    await this.branchAccess.assertAccess(user.restaurantId, branchId);
+    return this.ordersService.syncOfflineOrders(branchId, user.id, body.orders);
   }
 
   @Auth('orders.edit')
@@ -646,7 +667,42 @@ export class OrdersController {
       // A bill handed over before payment never pops the till.
       openDrawer: drawer === 'true' && !overrides.isProvisional,
     });
-    return this.sendJob(job, order.branch);
+
+    // Realtime Cloud-to-LAN Spooler event
+    this.realtime.emitToBranch(branchId, 'print.job', {
+      id: order.id,
+      branchId,
+      targetPrinter: (order.branch as any).printerName || 'Counter Printer',
+      jobType: 'RECEIPT',
+      ticketNumber: order.orderNumber,
+      rawEscposBase64: job.buffer.toString('base64'),
+      createdAt: new Date().toISOString(),
+    });
+
+    try {
+      return await this.sendJob(job, order.branch);
+    } catch (err) {
+      if (err instanceof ServiceUnavailableException || err instanceof PrinterNotFoundError) {
+        return {
+          ok: true,
+          unsupportedChars: job.unsupportedChars,
+        };
+      }
+      throw err;
+    }
+  }
+
+  @Auth('bills.print')
+  @Post(':id/receipt/print')
+  async printReceipt(
+    @CurrentUser() user: SessionUser,
+    @Query('branchId') branchId: string,
+    @Param('id') id: string,
+    @Query('width') width?: string,
+    @Query('drawer') drawer?: string,
+    @Query() query: Record<string, string> = {},
+  ) {
+    return this.printUsb(user, branchId, id, width, drawer, query);
   }
 
   // Kitchen tickets of an order on the thermal printer: one ticket per kitchen

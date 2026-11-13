@@ -7,6 +7,7 @@ import { InventoryService } from './inventory.service';
 import { PurchaseOrdersService } from './purchase-orders.service';
 import { PurchaseRequestsService } from './purchase-requests.service';
 import { StockService } from './stock.service';
+import { StockDepletionService } from './stock-depletion.service';
 import { SupplierInvoicesService } from './supplier-invoices.service';
 import { SupplierQuotationsService } from './supplier-quotations.service';
 import { TransfersController } from './transfers.controller';
@@ -18,6 +19,7 @@ import { WasteService } from './waste.service';
   controllers: [InventoryController, TransfersController],
   providers: [
     InventoryService,
+    StockDepletionService,
     PurchaseOrdersService,
     GoodsReceiptsService,
     WasteService,
@@ -28,6 +30,6 @@ import { WasteService } from './waste.service';
     SupplierInvoicesService,
     BranchAccessService,
   ],
-  exports: [InventoryService],
+  exports: [InventoryService, StockDepletionService],
 })
 export class InventoryModule {}

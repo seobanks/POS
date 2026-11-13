@@ -3,6 +3,7 @@
 import type { MenuCategoryDto, MenuItemDto } from "@nodedr-restaurant/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import { cacheMenu, getCachedMenu } from "@/lib/offline-db";
 
 export interface MenuCategory {
   id: string;
@@ -58,7 +59,23 @@ export interface MenuItem {
 export function useCategories(branchId: string | null) {
   return useQuery({
     queryKey: ["menu", "categories", branchId],
-    queryFn: () => api.get<MenuCategory[]>(`/menu/categories?branchId=${branchId}`),
+    queryFn: async () => {
+      try {
+        const categories = await api.get<MenuCategory[]>(`/menu/categories?branchId=${branchId}`);
+        if (branchId && categories) {
+          void cacheMenu(branchId, { categories });
+        }
+        return categories;
+      } catch (err) {
+        if (branchId) {
+          const cached = await getCachedMenu(branchId);
+          if (cached?.categories && cached.categories.length > 0) {
+            return cached.categories as MenuCategory[];
+          }
+        }
+        throw err;
+      }
+    },
     enabled: !!branchId,
   });
 }
@@ -74,10 +91,29 @@ export function useStations(branchId: string | null) {
 export function useMenuItems(branchId: string | null, categoryId?: string) {
   return useQuery({
     queryKey: ["menu", "items", branchId, categoryId],
-    queryFn: () =>
-      api.get<MenuItem[]>(
-        `/menu/items?branchId=${branchId}${categoryId ? `&categoryId=${categoryId}` : ""}`,
-      ),
+    queryFn: async () => {
+      try {
+        const items = await api.get<MenuItem[]>(
+          `/menu/items?branchId=${branchId}${categoryId ? `&categoryId=${categoryId}` : ""}`,
+        );
+        if (branchId && items && !categoryId) {
+          void cacheMenu(branchId, { items });
+        }
+        return items;
+      } catch (err) {
+        if (branchId) {
+          const cached = await getCachedMenu(branchId);
+          if (cached?.items && cached.items.length > 0) {
+            let res = cached.items as MenuItem[];
+            if (categoryId) {
+              res = res.filter((item) => item.categoryId === categoryId);
+            }
+            return res;
+          }
+        }
+        throw err;
+      }
+    },
     enabled: !!branchId,
   });
 }

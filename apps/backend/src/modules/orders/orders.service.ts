@@ -15,6 +15,7 @@ import {
   type CartItemDto,
   type CheckoutDto,
   type CreateOrderDto,
+  type QueuedOfflineOrderDto,
   type RefundDto,
   type SessionUser,
   type UpdateOrderDto,
@@ -24,6 +25,7 @@ import { AuditService } from '../../audit/audit.service';
 import { NotificationsService } from '../../notifications/notifications.service';
 import { GiftCardsService } from '../gift-cards/gift-cards.service';
 import { InventoryService } from '../inventory/inventory.service';
+import { StockDepletionService } from '../inventory/stock-depletion.service';
 import { MarketingService } from '../marketing/marketing.service';
 import { WebhooksService } from '../webhooks/webhooks.service';
 import { resolveProfile } from './escpos/encoder';
@@ -61,6 +63,7 @@ export class OrdersService {
     private readonly realtime: RealtimeGateway,
     private readonly giftCards: GiftCardsService,
     private readonly inventory: InventoryService,
+    private readonly stockDepletionService: StockDepletionService,
     private readonly audit: AuditService,
     private readonly notifications: NotificationsService,
     private readonly marketing: MarketingService,
@@ -437,6 +440,288 @@ export class OrdersService {
     });
 
     return full;
+  }
+
+  async syncOfflineOrders(
+    branchId: string,
+    userId: string,
+    orders: QueuedOfflineOrderDto[],
+  ) {
+    const branch = await this.prisma.branch.findUnique({
+      where: { id: branchId },
+      select: { id: true, taxMode: true },
+    });
+    if (!branch) {
+      throw new NotFoundException('Branch not found');
+    }
+
+    const synced: { offlineId: string; serverId: string; orderNumber: string }[] = [];
+    const failed: { offlineId: string; error: string }[] = [];
+
+    for (const offlineOrder of orders) {
+      try {
+        if (!offlineOrder.items || offlineOrder.items.length === 0) {
+          failed.push({
+            offlineId: offlineOrder.id,
+            error: 'Order must contain at least one item',
+          });
+          continue;
+        }
+
+        // Idempotency: if already processed via clientRequestId
+        const existing = await this.prisma.order.findFirst({
+          where: { branchId, clientRequestId: offlineOrder.id },
+          select: { id: true, orderNumber: true },
+        });
+        if (existing) {
+          synced.push({
+            offlineId: offlineOrder.id,
+            serverId: existing.id,
+            orderNumber: existing.orderNumber,
+          });
+          continue;
+        }
+
+        // Validate table if provided
+        let validTableId: string | null = null;
+        if (offlineOrder.tableId) {
+          const table = await this.prisma.table.findFirst({
+            where: { id: offlineOrder.tableId, floor: { branchId } },
+            select: { id: true },
+          });
+          if (table) {
+            validTableId = table.id;
+          }
+        }
+
+        // Collect menuItemIds and modifierIds
+        const menuItemIds = [...new Set(offlineOrder.items.map((i) => i.menuItemId))];
+        const dbMenuItems = await this.prisma.menuItem.findMany({
+          where: { id: { in: menuItemIds }, branchId },
+        });
+        const menuItemMap = new Map(dbMenuItems.map((m) => [m.id, m]));
+
+        const missingItems = menuItemIds.filter((id) => !menuItemMap.has(id));
+        if (missingItems.length > 0) {
+          failed.push({
+            offlineId: offlineOrder.id,
+            error: `One or more menu items no longer exist in branch: ${missingItems.join(', ')}`,
+          });
+          continue;
+        }
+
+        // Collect modifier IDs
+        const modifierIds = [
+          ...new Set(
+            offlineOrder.items
+              .flatMap((i) => (i.modifiers ?? []).map((m) => m.modifierId))
+              .filter((id): id is string => Boolean(id)),
+          ),
+        ];
+        const dbModifiers =
+          modifierIds.length > 0
+            ? await this.prisma.modifier.findMany({
+                where: { id: { in: modifierIds } },
+              })
+            : [];
+        const modifierMap = new Map(dbModifiers.map((m) => [m.id, m]));
+
+        const hasPayments =
+          Array.isArray(offlineOrder.payments) && offlineOrder.payments.length > 0;
+        const totalPaid = hasPayments
+          ? offlineOrder.payments!.reduce(
+              (sum, p) => sum + (Number(p.amount) || 0),
+              0,
+            )
+          : 0;
+
+        // Process order inside transaction
+        const createdOrder = await this.prisma.$transaction(async (tx) => {
+          const orderNumber = await this.nextOrderNumber(branchId);
+
+          let subtotal = 0;
+          let taxAmount = 0;
+
+          const lineCreates = offlineOrder.items.map((item) => {
+            const dbItem = menuItemMap.get(item.menuItemId)!;
+            const unitPrice = Number(item.unitPrice ?? dbItem.price);
+            const taxRate = Number(item.taxRate ?? dbItem.taxRatePercent ?? 0);
+            const quantity = Number(item.quantity) || 1;
+            const lineTotal = round2(unitPrice * quantity);
+
+            subtotal += lineTotal;
+            taxAmount += round2((lineTotal * taxRate) / 100);
+
+            const validModifiers = (item.modifiers ?? [])
+              .filter((m) => m.modifierId && modifierMap.has(m.modifierId))
+              .map((m) => {
+                const dbMod = modifierMap.get(m.modifierId!)!;
+                return {
+                  modifier: { connect: { id: dbMod.id } },
+                  nameSnapshot: m.nameSnapshot || dbMod.name,
+                  priceAdjSnapshot: Number(m.price ?? dbMod.priceAdjustment ?? 0),
+                };
+              });
+
+            return {
+              menuItem: { connect: { id: dbItem.id } },
+              nameSnapshot: item.nameSnapshot || dbItem.name,
+              unitPriceSnapshot: unitPrice,
+              taxRateSnapshot: taxRate,
+              quantity,
+              lineTotal,
+              kitchenNote: item.kitchenNote || null,
+              ...(validModifiers.length > 0
+                ? {
+                    modifiers: {
+                      create: validModifiers,
+                    },
+                  }
+                : {}),
+            };
+          });
+
+          subtotal = round2(subtotal);
+          taxAmount = round2(taxAmount);
+          const totalAmount = hasPayments ? round2(totalPaid) : subtotal;
+          const status = hasPayments ? 'PAID' : 'OPEN';
+
+          const validPaymentMethods = [
+            'CASH',
+            'CARD',
+            'UPI',
+            'WALLET',
+            'BANK_TRANSFER',
+            'GIFT_CARD',
+            'STORE_CREDIT',
+            'OTHER',
+          ];
+
+          const created = await tx.order.create({
+            data: {
+              branchId,
+              orderNumber,
+              type: offlineOrder.orderType,
+              channel: 'STAFF',
+              acceptance: 'NOT_REQUIRED',
+              status,
+              tableId: validTableId,
+              guestCount: offlineOrder.guestCount || null,
+              notes: offlineOrder.notes || null,
+              clientRequestId: offlineOrder.id,
+              createdById: userId,
+              subtotal,
+              taxAmount,
+              discountAmount: 0,
+              totalAmount,
+              createdAt: offlineOrder.createdAt
+                ? new Date(offlineOrder.createdAt)
+                : new Date(),
+              billedAt: hasPayments
+                ? new Date(offlineOrder.createdAt || Date.now())
+                : null,
+              items: {
+                create: lineCreates,
+              },
+              ...(hasPayments
+                ? {
+                    payments: {
+                      create: offlineOrder.payments!.map((p) => ({
+                        method: (validPaymentMethods.includes(p.method)
+                          ? p.method
+                          : 'OTHER') as any,
+                        amount: Number(p.amount),
+                        createdById: userId,
+                        createdAt: offlineOrder.createdAt
+                          ? new Date(offlineOrder.createdAt)
+                          : new Date(),
+                      })),
+                    },
+                  }
+                : {}),
+            },
+            include: { items: true },
+          });
+
+          // Table occupancy
+          if (validTableId) {
+            await tx.table.updateMany({
+              where: { id: validTableId },
+              data: {
+                status: hasPayments ? 'AVAILABLE' : 'OCCUPIED',
+                statusSince: new Date(),
+              },
+            });
+          }
+
+          // Generate KOTs if open
+          if (!hasPayments && created.items.length > 0) {
+            try {
+              await this.generateKots(tx, created.id, branchId, created.items);
+            } catch (kotErr) {
+              this.logger.warn(
+                `Failed to generate KOTs for synced order ${created.id}: ${kotErr}`,
+              );
+            }
+          }
+
+          // Deduct stock if paid
+          if (hasPayments) {
+            try {
+              await this.inventory.deductForOrder(
+                tx,
+                branchId,
+                userId,
+                created.id,
+                created.items.map((item) => ({
+                  menuItemId: item.menuItemId,
+                  quantity: item.quantity,
+                })),
+              );
+            } catch (invErr) {
+              this.logger.warn(
+                `Failed to deduct stock for synced paid order ${created.id}: ${invErr}`,
+              );
+            }
+          }
+
+          return created;
+        });
+
+        // Realtime notification
+        this.realtime.emitToBranch(branchId, 'order.created', {
+          id: createdOrder.id,
+          acceptance: createdOrder.acceptance,
+        });
+
+        if (hasPayments) {
+          void this.stockDepletionService
+            .depleteOrderStock(createdOrder.id, branchId, userId)
+            .catch((err) =>
+              this.logger.error(
+                `Stock depletion failed for offline order ${createdOrder.id}: ${err.message}`,
+              ),
+            );
+        }
+
+        synced.push({
+          offlineId: offlineOrder.id,
+          serverId: createdOrder.id,
+          orderNumber: createdOrder.orderNumber,
+        });
+      } catch (err: any) {
+        this.logger.error(
+          `Error syncing offline order ${offlineOrder.id}:`,
+          err,
+        );
+        failed.push({
+          offlineId: offlineOrder.id,
+          error: err?.message || 'Transaction failed',
+        });
+      }
+    }
+
+    return { synced, failed };
   }
 
   async addItems(
@@ -1747,6 +2032,13 @@ export class OrdersService {
           amount: Number(p.amount),
         })),
       });
+      void this.stockDepletionService
+        .depleteOrderStock(updated.id, branchId, userId)
+        .catch((err) =>
+          this.logger.error(
+            `Stock depletion failed for order ${updated.id}: ${err.message}`,
+          ),
+        );
     }
     return {
       ...updated,
