@@ -4,12 +4,18 @@
  * Provides offline navigation and fast loading
  */
 
-const CACHE_NAME = 'hanva-pos-shell-v1';
+const CACHE_NAME = 'hanva-pos-shell-v2';
 
 // Key shell assets to pre-cache on install
 const PRECACHE_ASSETS = [
   '/pos',
   '/captain',
+  '/captain/manifest.webmanifest',
+  '/captain-logo.png',
+  '/captain-apple-icon.png',
+  '/icons/captain-192.png',
+  '/icons/captain-512.png',
+  '/icons/captain-96.png',
   '/brand-lockup.png',
   '/hanva-logo.png',
   '/logo.png',

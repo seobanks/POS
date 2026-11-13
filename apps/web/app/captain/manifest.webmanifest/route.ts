@@ -51,7 +51,7 @@ export async function GET() {
   return NextResponse.json(manifest, {
     headers: {
       "Content-Type": "application/manifest+json; charset=utf-8",
-      "Cache-Control": "public, max-age=86400, stale-while-revalidate=43200",
+      "Cache-Control": "public, max-age=0, must-revalidate",
     },
   });
 }

@@ -1,77 +1,41 @@
-"use client";
+import type { Metadata, Viewport } from "next";
+import { CaptainClientShell } from "./captain-client-shell";
 
-import { usePathname, useRouter } from "next/navigation";
-import { useEffect } from "react";
-import { useCurrentUser } from "@/hooks/use-auth";
-import { BranchProvider, useBranch } from "@/hooks/use-branch";
-import { useRealtime } from "@/hooks/use-realtime";
-import { CaptainInstallPrompt } from "@/components/captain/captain-install-prompt";
+export const metadata: Metadata = {
+  title: "SERVIO Captain — Smart Restaurant Service",
+  description:
+    "SERVIO Smart Restaurant Service by Hanva POS — Waiter & Captain Tablet & Mobile Ordering App",
+  manifest: "/captain/manifest.webmanifest?v=2",
+  appleWebApp: {
+    capable: true,
+    title: "SERVIO Captain",
+    statusBarStyle: "default",
+  },
+  icons: {
+    icon: [
+      { url: "/icons/captain-96.png", sizes: "96x96", type: "image/png" },
+      { url: "/icons/captain-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/captain-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [
+      { url: "/captain-apple-icon.png", sizes: "180x180", type: "image/png" },
+    ],
+  },
+};
 
-// RealtimeBridge subscribes this Captain layout to push updates
-// for orders, KOTs, tables, and table requests.
-function RealtimeBridge() {
-  const { branchId } = useBranch();
-  useRealtime(branchId);
-  return null;
-}
+export const viewport: Viewport = {
+  themeColor: "#ea580c",
+  viewportFit: "cover",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+};
 
 export default function CaptainLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const { data, isLoading, isError } = useCurrentUser();
-
-  useEffect(() => {
-    if (!isLoading && (isError || !data?.user)) {
-      const returnUrl = encodeURIComponent(pathname || "/captain");
-      router.replace(`/login?returnUrl=${returnUrl}`);
-    }
-  }, [isLoading, isError, data, router, pathname]);
-
-  if (isLoading) {
-    return (
-      <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-background text-muted-foreground">
-        <div className="flex flex-col items-center gap-3">
-          <div className="h-16 w-16 overflow-hidden rounded-2xl border border-border shadow-md bg-white">
-            <img
-              src="/icons/captain-192.png"
-              alt="SERVIO Captain"
-              className="h-full w-full object-cover animate-pulse"
-            />
-          </div>
-          <p className="text-xs font-semibold tracking-wide text-foreground">Connecting to SERVIO Captain…</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (isError || !data?.user) {
-    return null;
-  }
-
-  return (
-    <>
-      <head>
-        <link rel="manifest" href="/captain/manifest.webmanifest" />
-        <link rel="apple-touch-icon" href="/captain-apple-icon.png" />
-        <link rel="icon" type="image/png" sizes="192x192" href="/icons/captain-192.png" />
-        <link rel="icon" type="image/png" sizes="96x96" href="/icons/captain-96.png" />
-        <meta name="theme-color" content="#ea580c" />
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-        <meta name="apple-mobile-web-app-title" content="SERVIO Captain" />
-        <meta name="mobile-web-app-capable" content="yes" />
-      </head>
-      <BranchProvider>
-        <RealtimeBridge />
-        <div className="relative flex min-h-[100dvh] w-full flex-col bg-background text-foreground antialiased select-none pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]">
-          {children}
-          <CaptainInstallPrompt />
-        </div>
-      </BranchProvider>
-    </>
-  );
+  return <CaptainClientShell>{children}</CaptainClientShell>;
 }
