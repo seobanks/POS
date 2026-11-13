@@ -70,3 +70,9 @@ export function useResetPassword() {
 export function hasPermission(user: SessionUser | undefined, permission: string): boolean {
   return user ? permissionSatisfied(user.permissions, permission) : false;
 }
+
+export function isWaiterUser(user?: { roleName?: string | null }): boolean {
+  if (!user?.roleName) return false;
+  const r = user.roleName.trim().toUpperCase();
+  return r === "WAITER" || r.includes("WAITER") || r === "CAPTAIN" || r.includes("CAPTAIN");
+}

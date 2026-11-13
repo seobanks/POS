@@ -3,7 +3,7 @@
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { AppShell } from "@/components/layout/app-shell";
-import { useCurrentUser } from "@/hooks/use-auth";
+import { isWaiterUser, useCurrentUser } from "@/hooks/use-auth";
 import { BranchProvider, useBranch } from "@/hooks/use-branch";
 import { useRealtime } from "@/hooks/use-realtime";
 import { NAV_ITEMS } from "@/components/layout/nav-items";
@@ -28,6 +28,7 @@ export default function DashboardGroupLayout({ children }: { children: React.Rea
   const pathname = usePathname();
   const { data, isLoading, isError } = useCurrentUser();
   const permissions = data?.user.permissions;
+  const isWaiter = isWaiterUser(data?.user);
   const allowed = !permissions || canOpen(pathname ?? "", permissions, NAV_ITEMS);
   const fallback = permissions ? firstAllowedHref(permissions, NAV_ITEMS) : undefined;
 
@@ -37,11 +38,19 @@ export default function DashboardGroupLayout({ children }: { children: React.Rea
     }
   }, [isLoading, isError, router]);
 
-  // Direct URL to a page the role may not use (e.g. a waiter opening /dashboard
-  // after login): send them to their first permitted screen.
+  // Waiter role immediately navigates to /captain
   useEffect(() => {
-    if (!allowed && fallback && fallback !== pathname) router.replace(fallback);
-  }, [allowed, fallback, pathname, router]);
+    if (isWaiter) {
+      router.replace("/captain");
+    }
+  }, [isWaiter, router]);
+
+  // Direct URL to a page the role may not use: send them to their first permitted screen.
+  useEffect(() => {
+    if (!isWaiter && !allowed && fallback && fallback !== pathname) {
+      router.replace(fallback);
+    }
+  }, [isWaiter, allowed, fallback, pathname, router]);
 
   if (isLoading) {
     return <div className="flex min-h-screen items-center justify-center bg-background" />;
@@ -49,6 +58,14 @@ export default function DashboardGroupLayout({ children }: { children: React.Rea
 
   if (isError || !data) {
     return null;
+  }
+
+  if (isWaiter) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background p-6 text-center text-sm text-muted-foreground">
+        Taking you to Captain…
+      </div>
+    );
   }
 
   if (!allowed) {

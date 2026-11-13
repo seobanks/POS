@@ -2,14 +2,17 @@
 
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useTheme } from "next-themes";
 import {
   Bell,
   BellRing,
   Check,
   CheckCheck,
   Clock,
+  Moon,
   Receipt,
   RotateCw,
+  Sun,
   User,
   Utensils,
   Wifi,
@@ -68,6 +71,7 @@ export function CaptainHeader({
   const { branchId, branches } = useBranch();
   const { data: userData } = useCurrentUser();
   const { data: settings } = useSettings(branchId);
+  const { theme, setTheme, resolvedTheme } = useTheme();
   const realtimeState = useRealtimeState();
 
   const { data: tableRequests = [] } = useTableRequests(branchId);
@@ -106,8 +110,8 @@ export function CaptainHeader({
   };
 
   return (
-    <header className={cn("sticky top-0 z-40 flex flex-col bg-zinc-950/95 backdrop-blur-md border-b border-zinc-800/80 shadow-md", className)}>
-      {/* Top Bar: Restaurant Info, Staff Info, Connection, Alerts, Refresh */}
+    <header className={cn("sticky top-0 z-40 flex flex-col bg-white/95 dark:bg-zinc-950/95 backdrop-blur-md border-b border-zinc-200 dark:border-zinc-800/80 shadow-xs", className)}>
+      {/* Top Bar: Restaurant Info, Staff Info, Connection, Alerts, Refresh, Theme */}
       <div className="flex h-14 items-center justify-between px-3.5 sm:px-4">
         {/* Left: Brand / Restaurant & Branch */}
         <div className="flex items-center gap-2.5 min-w-0">
@@ -115,15 +119,15 @@ export function CaptainHeader({
             <Utensils className="h-4 w-4" />
           </div>
           <div className="flex flex-col min-w-0">
-            <h1 className="truncate text-xs font-semibold text-zinc-100 sm:text-sm tracking-tight">
+            <h1 className="truncate text-xs font-semibold text-zinc-900 dark:text-zinc-100 sm:text-sm tracking-tight">
               {restaurantName}
             </h1>
-            <div className="flex items-center gap-1.5 text-[11px] text-zinc-400">
+            <div className="flex items-center gap-1.5 text-[11px] text-zinc-500 dark:text-zinc-400">
               <span className="truncate max-w-[120px] sm:max-w-[180px]">{branchName}</span>
-              <span className="text-zinc-600">·</span>
+              <span className="text-zinc-400 dark:text-zinc-600">·</span>
               {/* Live Connection Status */}
               {realtimeState === "live" && (
-                <span className="inline-flex items-center gap-1 font-medium text-emerald-400">
+                <span className="inline-flex items-center gap-1 font-medium text-emerald-600 dark:text-emerald-400">
                   <span className="relative flex h-1.5 w-1.5">
                     <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
                     <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
@@ -132,14 +136,14 @@ export function CaptainHeader({
                 </span>
               )}
               {realtimeState === "connecting" && (
-                <span className="inline-flex items-center gap-1 font-medium text-amber-400">
+                <span className="inline-flex items-center gap-1 font-medium text-amber-600 dark:text-amber-400">
                   <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-400" />
                   Syncing
                 </span>
               )}
               {realtimeState === "offline" && (
-                <span className="inline-flex items-center gap-1 font-medium text-zinc-400">
-                  <WifiOff className="h-3 w-3 text-zinc-500" />
+                <span className="inline-flex items-center gap-1 font-medium text-zinc-500 dark:text-zinc-400">
+                  <WifiOff className="h-3 w-3 text-zinc-400 dark:text-zinc-500" />
                   Offline
                 </span>
               )}
@@ -147,9 +151,22 @@ export function CaptainHeader({
           </div>
         </div>
 
-        {/* Right: Waiter Profile, Alerts, Quick Refresh */}
+        {/* Right: Waiter Profile, Alerts, Quick Refresh, Theme Toggle */}
         <div className="flex items-center gap-2 shrink-0">
           <OfflineIndicator branchId={branchId} />
+
+          {/* Light / Dark Theme Switcher */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+            className="h-9 w-9 rounded-xl text-zinc-600 dark:text-zinc-400 hover:text-zinc-950 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-900 border border-zinc-200 dark:border-zinc-800/80"
+            title={resolvedTheme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+            aria-label="Toggle light/dark theme"
+          >
+            <Sun className="h-4 w-4 text-amber-500 hidden dark:block" />
+            <Moon className="h-4 w-4 text-indigo-600 block dark:hidden" />
+          </Button>
           {/* Table Requests Alert Button (Flashing if pending) */}
           <Sheet open={alertsOpen} onOpenChange={setAlertsOpen}>
             <SheetTrigger
@@ -185,19 +202,19 @@ export function CaptainHeader({
 
             <SheetContent
               side="bottom"
-              className="max-h-[85vh] rounded-t-2xl border-t border-zinc-800 bg-zinc-950 p-4 text-zinc-100"
+              className="max-h-[85vh] rounded-t-2xl border-t border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4 text-zinc-900 dark:text-zinc-100"
             >
-              <SheetHeader className="pb-3 border-b border-zinc-800">
+              <SheetHeader className="pb-3 border-b border-zinc-200 dark:border-zinc-800">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-rose-500/20 text-rose-400">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-rose-500/20 text-rose-500 dark:text-rose-400">
                       <BellRing className="h-4 w-4" />
                     </div>
                     <div>
-                      <SheetTitle className="text-base text-zinc-100">
+                      <SheetTitle className="text-base text-zinc-900 dark:text-zinc-100">
                         Table Requests ({pendingRequestsCount})
                       </SheetTitle>
-                      <SheetDescription className="text-xs text-zinc-400">
+                      <SheetDescription className="text-xs text-zinc-500 dark:text-zinc-400">
                         Guest taps from table QR self-service
                       </SheetDescription>
                     </div>
@@ -206,7 +223,7 @@ export function CaptainHeader({
                     <Button
                       size="sm"
                       variant="outline"
-                      className="h-8 border-zinc-700 bg-zinc-900 text-xs text-zinc-200 hover:bg-zinc-800"
+                      className="h-8 border-zinc-300 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-900 text-xs text-zinc-800 dark:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-zinc-800"
                       disabled={resolveRequest.isPending}
                       onClick={handleResolveAll}
                     >
@@ -221,8 +238,8 @@ export function CaptainHeader({
               <div className="mt-3 flex flex-col gap-2.5 max-h-[55vh] overflow-y-auto pr-1">
                 {tableRequests.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-8 text-center">
-                    <Check className="h-8 w-8 text-emerald-400 mb-2 opacity-80" />
-                    <p className="text-sm font-medium text-zinc-300">All caught up!</p>
+                    <Check className="h-8 w-8 text-emerald-500 mb-2 opacity-80" />
+                    <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">All caught up!</p>
                     <p className="text-xs text-zinc-500">No pending waiter calls or bill requests.</p>
                   </div>
                 ) : (
@@ -232,8 +249,8 @@ export function CaptainHeader({
                       className={cn(
                         "flex items-center justify-between gap-3 rounded-xl p-3 border transition-colors",
                         req.type === "BILL"
-                          ? "border-amber-500/30 bg-amber-500/10 text-amber-200"
-                          : "border-rose-500/30 bg-rose-500/10 text-rose-200",
+                          ? "border-amber-500/30 bg-amber-500/10 text-amber-950 dark:text-amber-200"
+                          : "border-rose-500/30 bg-rose-500/10 text-rose-950 dark:text-rose-200",
                       )}
                     >
                       <div className="flex items-center gap-3 min-w-0">
@@ -241,8 +258,8 @@ export function CaptainHeader({
                           className={cn(
                             "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl",
                             req.type === "BILL"
-                              ? "bg-amber-500/20 text-amber-400"
-                              : "bg-rose-500/20 text-rose-400",
+                              ? "bg-amber-500/20 text-amber-600 dark:text-amber-400"
+                              : "bg-rose-500/20 text-rose-600 dark:text-rose-400",
                           )}
                         >
                           {req.type === "BILL" ? (
@@ -252,10 +269,10 @@ export function CaptainHeader({
                           )}
                         </div>
                         <div className="min-w-0">
-                          <p className="font-semibold text-sm text-zinc-100 truncate">
+                          <p className="font-semibold text-sm text-zinc-900 dark:text-zinc-100 truncate">
                             {req.table.name ?? `Table ${req.table.number}`}
                           </p>
-                          <p className="text-xs text-zinc-400 flex items-center gap-1.5">
+                          <p className="text-xs text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5">
                             <span>{req.type === "BILL" ? "Requested Bill" : "Called Waiter"}</span>
                             <span>·</span>
                             <span className="flex items-center gap-0.5">
@@ -293,7 +310,7 @@ export function CaptainHeader({
             size="icon"
             onClick={handleQuickRefresh}
             disabled={isRefreshing}
-            className="h-9 w-9 rounded-xl text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900 border border-zinc-800/80"
+            className="h-9 w-9 rounded-xl text-zinc-600 dark:text-zinc-400 hover:text-zinc-950 dark:hover:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-900 border border-zinc-200 dark:border-zinc-800/80"
             title="Refresh floor & orders"
             aria-label="Refresh floor & orders"
           >
@@ -301,12 +318,12 @@ export function CaptainHeader({
           </Button>
 
           {/* Waiter / Staff Avatar Badge */}
-          <div className="flex items-center gap-1.5 pl-1.5 border-l border-zinc-800">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-800 text-zinc-200 border border-zinc-700">
+          <div className="flex items-center gap-1.5 pl-1.5 border-l border-zinc-200 dark:border-zinc-800">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-200 border border-zinc-200 dark:border-zinc-700">
               <User className="h-4 w-4" />
             </div>
             <div className="hidden sm:flex flex-col text-left">
-              <span className="text-xs font-medium text-zinc-200 truncate max-w-[90px]">
+              <span className="text-xs font-medium text-zinc-800 dark:text-zinc-200 truncate max-w-[90px]">
                 {staffName}
               </span>
               <span className="text-[10px] text-zinc-500 leading-none">{staffRole}</span>
@@ -316,7 +333,7 @@ export function CaptainHeader({
       </div>
 
       {/* Floor Selector Horizontal Scrolling Tabs */}
-      <div className="flex items-center gap-1.5 overflow-x-auto px-3.5 py-2 no-scrollbar border-t border-zinc-800/60 bg-zinc-900/40">
+      <div className="flex items-center gap-1.5 overflow-x-auto px-3.5 py-2 no-scrollbar border-t border-zinc-200/80 dark:border-zinc-800/60 bg-zinc-50 dark:bg-zinc-900/40">
         {/* "All Tables" Tab */}
         <button
           type="button"
@@ -325,7 +342,7 @@ export function CaptainHeader({
             "flex h-11 min-h-[44px] shrink-0 items-center gap-1.5 rounded-xl px-3.5 text-xs font-medium transition-all active:scale-95",
             selectedFloorId === null
               ? "bg-primary text-primary-foreground font-semibold shadow-sm"
-              : "bg-zinc-900/90 text-zinc-300 hover:bg-zinc-800/90 hover:text-zinc-100 border border-zinc-800/80",
+              : "bg-zinc-100/90 dark:bg-zinc-900/90 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200/90 dark:hover:bg-zinc-800/90 hover:text-zinc-950 dark:hover:text-zinc-100 border border-zinc-200 dark:border-zinc-800/80",
           )}
         >
           <span>All Tables</span>
@@ -334,7 +351,7 @@ export function CaptainHeader({
               "ml-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums",
               selectedFloorId === null
                 ? "bg-primary-foreground/20 text-primary-foreground"
-                : "bg-zinc-800 text-zinc-400",
+                : "bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400",
             )}
           >
             {totalTableCount}
@@ -354,7 +371,7 @@ export function CaptainHeader({
                 "flex h-11 min-h-[44px] shrink-0 items-center gap-1.5 rounded-xl px-3.5 text-xs font-medium transition-all active:scale-95",
                 isSelected
                   ? "bg-primary text-primary-foreground font-semibold shadow-sm"
-                  : "bg-zinc-900/90 text-zinc-300 hover:bg-zinc-800/90 hover:text-zinc-100 border border-zinc-800/80",
+                  : "bg-zinc-100/90 dark:bg-zinc-900/90 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200/90 dark:hover:bg-zinc-800/90 hover:text-zinc-950 dark:hover:text-zinc-100 border border-zinc-200 dark:border-zinc-800/80",
               )}
             >
               <span className="truncate max-w-[120px]">{floor.name}</span>
@@ -363,7 +380,7 @@ export function CaptainHeader({
                   "ml-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums",
                   isSelected
                     ? "bg-primary-foreground/20 text-primary-foreground"
-                    : "bg-zinc-800 text-zinc-400",
+                    : "bg-zinc-200 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400",
                 )}
               >
                 {count}

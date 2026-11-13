@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
-import { useCurrentUser, useLogin } from "@/hooks/use-auth";
+import { isWaiterUser, useCurrentUser, useLogin } from "@/hooks/use-auth";
 import { ApiError } from "@/lib/api";
 import { safeZodResolver } from "@/lib/safe-zod-resolver";
 
@@ -23,7 +23,11 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (isAuthenticated && auth?.user) {
-      router.replace("/dashboard");
+      if (isWaiterUser(auth.user)) {
+        router.replace("/captain");
+      } else {
+        router.replace("/dashboard");
+      }
     }
   }, [isAuthenticated, auth, router]);
 
@@ -41,8 +45,9 @@ export default function LoginPage() {
   const onSubmit = (dto: LoginDto) => {
     setError(null);
     login.mutate(dto, {
-      onSuccess: () => {
-        window.location.href = "/dashboard";
+      onSuccess: (data) => {
+        const isWaiter = isWaiterUser(data?.user);
+        window.location.href = isWaiter ? "/captain" : "/dashboard";
       },
       onError: (err) => {
         if (err instanceof ApiError && err.message === "TWO_FACTOR_REQUIRED") {

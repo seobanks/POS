@@ -35,7 +35,9 @@ export function SidebarNav({
 
   // For cashiers, the highlighted New Sale button at the top serves as their direct
   // POS entry point, so we avoid showing a duplicate "Point of Sale" in the list below.
+  // Captain (waiter) view is fetched automatically by role and never shown in the sidebar.
   const visibleNavItems = NAV_ITEMS.filter((item) => {
+    if (item.href === "/captain") return false;
     if (isCashier && item.href === "/pos") return false;
     return !item.permission || hasPermission(user, item.permission);
   });
