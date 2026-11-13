@@ -160,6 +160,101 @@ export class MenuController {
     return this.menuService.bulkImportItems(branchId, user.id, body.items);
   }
 
+  @Auth('menu.manage')
+  @Patch('items/bulk-update')
+  async bulkUpdateItems(
+    @CurrentUser() user: SessionUser,
+    @Query('branchId') branchId: string,
+    @Body()
+    body: {
+      itemIds: string[];
+      updates: {
+        isActive?: boolean;
+        isVeg?: boolean;
+        isVegan?: boolean;
+        isJain?: boolean;
+        isGlutenFree?: boolean;
+        spiceLevel?: any;
+        taxRatePercent?: number | string;
+        prepTimeMinutes?: number;
+        description?: string;
+      };
+    },
+  ) {
+    await this.branchAccess.assertAccess(user.restaurantId, branchId);
+    return this.menuService.bulkUpdateItems(
+      branchId,
+      user.id,
+      body.itemIds,
+      body.updates,
+    );
+  }
+
+  @Auth('menu.manage')
+  @Post('items/bulk-delete')
+  async bulkDeleteItems(
+    @CurrentUser() user: SessionUser,
+    @Query('branchId') branchId: string,
+    @Body() body: { itemIds: string[] },
+  ) {
+    await this.branchAccess.assertAccess(user.restaurantId, branchId);
+    return this.menuService.bulkDeleteItems(branchId, user.id, body.itemIds);
+  }
+
+  @Auth('menu.manage')
+  @Post('items/price-adjustment')
+  async bulkPriceAdjustment(
+    @CurrentUser() user: SessionUser,
+    @Query('branchId') branchId: string,
+    @Body()
+    body: {
+      itemIds: string[];
+      type: 'percent' | 'fixed';
+      value: number;
+      direction: 'increase' | 'decrease';
+    },
+  ) {
+    await this.branchAccess.assertAccess(user.restaurantId, branchId);
+    return this.menuService.bulkPriceAdjustment(branchId, user.id, body);
+  }
+
+  @Auth('menu.manage')
+  @Post('items/assign-addons')
+  async bulkAssignAddons(
+    @CurrentUser() user: SessionUser,
+    @Query('branchId') branchId: string,
+    @Body()
+    body: {
+      itemIds?: string[];
+      categoryIds?: string[];
+      modifierGroupId: string;
+    },
+  ) {
+    await this.branchAccess.assertAccess(user.restaurantId, branchId);
+    return this.menuService.bulkAssignAddons(branchId, body);
+  }
+
+  @Auth('menu.manage')
+  @Get('items/deleted')
+  async getDeletedItems(
+    @CurrentUser() user: SessionUser,
+    @Query('branchId') branchId: string,
+  ) {
+    await this.branchAccess.assertAccess(user.restaurantId, branchId);
+    return this.menuService.getDeletedItems(branchId);
+  }
+
+  @Auth('menu.manage')
+  @Post('items/restore/:id')
+  async restoreItem(
+    @CurrentUser() user: SessionUser,
+    @Query('branchId') branchId: string,
+    @Param('id') id: string,
+  ) {
+    await this.branchAccess.assertAccess(user.restaurantId, branchId);
+    return this.menuService.restoreItem(branchId, id);
+  }
+
   @Auth('menu.view')
   @Get('items/:id')
   async getItem(

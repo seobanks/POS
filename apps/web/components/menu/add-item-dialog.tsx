@@ -35,13 +35,23 @@ import { compressImage } from "@/lib/image-compress";
 export function AddItemDialog({
   branchId,
   categories,
+  open: controlledOpen,
+  onOpenChange: setControlledOpen,
+  defaultCategoryId,
+  trigger,
 }: {
   branchId: string | null;
   categories: MenuCategory[];
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  defaultCategoryId?: string;
+  trigger?: React.ReactNode;
 }) {
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
+  const setOpen = setControlledOpen !== undefined ? setControlledOpen : setInternalOpen;
   const [name, setName] = useState("");
-  const [categoryId, setCategoryId] = useState<string>("");
+  const [categoryId, setCategoryId] = useState<string>(defaultCategoryId ?? "");
   const [stationId, setStationId] = useState<string>("");
   const [price, setPrice] = useState("");
   const [halfPrice, setHalfPrice] = useState("");
@@ -128,13 +138,17 @@ export function AddItemDialog({
         if (!next) reset();
       }}
     >
-      <DialogTrigger
-        render={
-          <Button size="sm" disabled={categories.length === 0}>
-            Add item
-          </Button>
-        }
-      />
+      {trigger !== undefined ? (
+        trigger && <DialogTrigger render={trigger as never} />
+      ) : controlledOpen !== undefined ? null : (
+        <DialogTrigger
+          render={
+            <Button size="sm" disabled={categories.length === 0}>
+              Add item
+            </Button>
+          }
+        />
+      )}
       <DialogContent className="sm:max-w-md">
         <form onSubmit={onSubmit} className="flex flex-col gap-4">
           <DialogHeader>

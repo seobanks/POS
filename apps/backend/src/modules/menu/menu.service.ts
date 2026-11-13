@@ -226,6 +226,178 @@ export class MenuService {
     return { ok: true };
   }
 
+  async bulkUpdateItems(
+    branchId: string,
+    userId: string,
+    itemIds: string[],
+    updates: {
+      isActive?: boolean;
+      isVeg?: boolean;
+      isVegan?: boolean;
+      isJain?: boolean;
+      isGlutenFree?: boolean;
+      spiceLevel?: any;
+      taxRatePercent?: number | string;
+      prepTimeMinutes?: number;
+      description?: string;
+    },
+  ) {
+    if (!itemIds || itemIds.length === 0) return { updatedCount: 0 };
+    const res = await this.prisma.menuItem.updateMany({
+      where: { id: { in: itemIds }, branchId },
+      data: updates as never,
+    });
+
+    await this.audit.record({
+      userId,
+      action: 'menu_item.bulk_updated',
+      entity: 'MenuItem',
+      entityId: itemIds[0] ?? 'bulk',
+      metadata: {
+        affectedCount: res.count,
+        itemIds,
+        updates,
+      },
+    });
+
+    return { updatedCount: res.count };
+  }
+
+  async bulkDeleteItems(branchId: string, userId: string, itemIds: string[]) {
+    if (!itemIds || itemIds.length === 0) return { deletedCount: 0 };
+    const res = await this.prisma.menuItem.updateMany({
+      where: { id: { in: itemIds }, branchId },
+      data: { isActive: false },
+    });
+
+    await this.audit.record({
+      userId,
+      action: 'menu_item.bulk_deleted',
+      entity: 'MenuItem',
+      entityId: itemIds[0] ?? 'bulk',
+      metadata: {
+        affectedCount: res.count,
+        itemIds,
+      },
+    });
+
+    return { deletedCount: res.count };
+  }
+
+  async bulkPriceAdjustment(
+    branchId: string,
+    userId: string,
+    dto: {
+      itemIds: string[];
+      type: 'percent' | 'fixed';
+      value: number;
+      direction: 'increase' | 'decrease';
+    },
+  ) {
+    const items = await this.prisma.menuItem.findMany({
+      where: { id: { in: dto.itemIds }, branchId },
+    });
+    let updatedCount = 0;
+    for (const item of items) {
+      const currentPrice = Number(item.price);
+      let newPrice = currentPrice;
+      if (dto.type === 'percent') {
+        const delta = (currentPrice * dto.value) / 100;
+        newPrice =
+          dto.direction === 'increase'
+            ? currentPrice + delta
+            : Math.max(0, currentPrice - delta);
+      } else {
+        newPrice =
+          dto.direction === 'increase'
+            ? currentPrice + dto.value
+            : Math.max(0, currentPrice - dto.value);
+      }
+      newPrice = Math.round(newPrice * 100) / 100;
+      await this.prisma.menuItem.update({
+        where: { id: item.id },
+        data: { price: newPrice },
+      });
+      updatedCount++;
+    }
+
+    await this.audit.record({
+      userId,
+      action: 'menu_item.price_adjusted',
+      entity: 'MenuItem',
+      entityId: dto.itemIds[0] ?? 'bulk',
+      metadata: {
+        affectedCount: updatedCount,
+        adjustment: dto,
+      },
+    });
+
+    return { updatedCount };
+  }
+
+  async bulkAssignAddons(
+    branchId: string,
+    dto: {
+      itemIds?: string[];
+      categoryIds?: string[];
+      modifierGroupId: string;
+    },
+  ) {
+    await this.assertModifierGroupInBranch(branchId, dto.modifierGroupId);
+    let targetItemIds = dto.itemIds ?? [];
+    if (dto.categoryIds && dto.categoryIds.length > 0) {
+      const catItems = await this.prisma.menuItem.findMany({
+        where: { categoryId: { in: dto.categoryIds }, branchId },
+        select: { id: true },
+      });
+      targetItemIds = Array.from(
+        new Set([...targetItemIds, ...catItems.map((i) => i.id)]),
+      );
+    }
+    let assignedCount = 0;
+    for (const itemId of targetItemIds) {
+      const exists = await this.prisma.menuItemModifierGroup.findUnique({
+        where: {
+          menuItemId_modifierGroupId: {
+            menuItemId: itemId,
+            modifierGroupId: dto.modifierGroupId,
+          },
+        },
+      });
+      if (!exists) {
+        await this.prisma.menuItemModifierGroup.create({
+          data: {
+            menuItemId: itemId,
+            modifierGroupId: dto.modifierGroupId,
+            sortOrder: 0,
+          },
+        });
+        assignedCount++;
+      }
+    }
+    return { assignedCount };
+  }
+
+  async getDeletedItems(branchId: string) {
+    return this.prisma.menuItem.findMany({
+      where: { branchId, isActive: false },
+      include: { category: true },
+      orderBy: { updatedAt: 'desc' },
+      take: 50,
+    });
+  }
+
+  async restoreItem(branchId: string, id: string) {
+    const item = await this.prisma.menuItem.findFirst({
+      where: { id, branchId },
+    });
+    if (!item) throw new NotFoundException('Item not found');
+    return this.prisma.menuItem.update({
+      where: { id },
+      data: { isActive: true },
+    });
+  }
+
   // --- Modifier groups --------------------------------------------------------
 
   listModifierGroups(branchId: string) {

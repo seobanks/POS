@@ -88,6 +88,14 @@ export function useStations(branchId: string | null) {
   });
 }
 
+export function useModifierGroups(branchId: string | null) {
+  return useQuery({
+    queryKey: ["menu", "modifier-groups", branchId],
+    queryFn: () => api.get<ModifierGroup[]>(`/menu/modifier-groups?branchId=${branchId}`),
+    enabled: !!branchId,
+  });
+}
+
 export function useMenuItems(branchId: string | null, categoryId?: string) {
   return useQuery({
     queryKey: ["menu", "items", branchId, categoryId],
@@ -200,6 +208,92 @@ export function useBulkImportMenuItems(branchId: string | null) {
       ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["menu", "items", branchId] });
+      queryClient.invalidateQueries({ queryKey: ["menu", "categories", branchId] });
+    },
+  });
+}
+
+export function useBulkUpdateMenuItems(branchId: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      itemIds,
+      updates,
+    }: {
+      itemIds: string[];
+      updates: Record<string, unknown>;
+    }) =>
+      api.patch<{ updatedCount: number }>(`/menu/items/bulk-update?branchId=${branchId}`, {
+        itemIds,
+        updates,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["menu", "items", branchId] });
+      queryClient.invalidateQueries({ queryKey: ["menu", "categories", branchId] });
+    },
+  });
+}
+
+export function useBulkDeleteMenuItems(branchId: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (itemIds: string[]) =>
+      api.post<{ deletedCount: number }>(`/menu/items/bulk-delete?branchId=${branchId}`, {
+        itemIds,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["menu", "items", branchId] });
+      queryClient.invalidateQueries({ queryKey: ["menu", "categories", branchId] });
+    },
+  });
+}
+
+export function useQuickToolPriceAdjust(branchId: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (dto: {
+      itemIds: string[];
+      type: "percent" | "fixed";
+      value: number;
+      direction: "increase" | "decrease";
+    }) =>
+      api.post<{ updatedCount: number }>(`/menu/items/price-adjustment?branchId=${branchId}`, dto),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["menu", "items", branchId] });
+    },
+  });
+}
+
+export function useQuickToolAssignAddons(branchId: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (dto: {
+      itemIds?: string[];
+      categoryIds?: string[];
+      modifierGroupId: string;
+    }) =>
+      api.post<{ assignedCount: number }>(`/menu/items/assign-addons?branchId=${branchId}`, dto),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["menu", "items", branchId] });
+    },
+  });
+}
+
+export function useDeletedMenuItems(branchId: string | null) {
+  return useQuery({
+    queryKey: ["menu", "items", "deleted", branchId],
+    queryFn: () => api.get<MenuItem[]>(`/menu/items/deleted?branchId=${branchId}`),
+    enabled: !!branchId,
+  });
+}
+
+export function useRestoreMenuItem(branchId: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.post(`/menu/items/restore/${id}?branchId=${branchId}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["menu", "items", branchId] });
+      queryClient.invalidateQueries({ queryKey: ["menu", "items", "deleted", branchId] });
       queryClient.invalidateQueries({ queryKey: ["menu", "categories", branchId] });
     },
   });

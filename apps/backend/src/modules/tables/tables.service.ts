@@ -45,6 +45,12 @@ export class TablesService {
     return this.prisma.floor.update({ where: { id }, data: dto });
   }
 
+  async deleteFloor(branchId: string, id: string) {
+    await this.assertFloorInBranch(branchId, id);
+    await this.prisma.floor.delete({ where: { id } });
+    return { ok: true };
+  }
+
   async createTable(branchId: string, dto: TableDto) {
     await this.assertFloorInBranch(branchId, dto.floorId);
     const table = await this.prisma.table.create({ data: dto });

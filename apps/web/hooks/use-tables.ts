@@ -75,8 +75,16 @@ export function useCreateFloor(branchId: string | null) {
 export function useUpdateFloor(branchId: string | null) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, name }: { id: string; name: string }) =>
-      api.patch(`/tables/floors/${id}?branchId=${branchId}`, { name }),
+    mutationFn: ({ id, name, sortOrder }: { id: string; name: string; sortOrder?: number }) =>
+      api.patch(`/tables/floors/${id}?branchId=${branchId}`, { name, sortOrder }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["floors", branchId] }),
+  });
+}
+
+export function useDeleteFloor(branchId: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.delete(`/tables/floors/${id}?branchId=${branchId}`),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["floors", branchId] }),
   });
 }

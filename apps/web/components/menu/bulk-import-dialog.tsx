@@ -29,9 +29,21 @@ import {
 import { ApiError } from "@/lib/api";
 import { parseMenuCsv, SAMPLE_MENU_CSV } from "@/lib/csv-parser";
 
-export function BulkImportDialog({ branchId }: { branchId: string | null }) {
+export function BulkImportDialog({
+  branchId,
+  open: controlledOpen,
+  onOpenChange: setControlledOpen,
+  trigger,
+}: {
+  branchId: string | null;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  trigger?: React.ReactNode;
+}) {
   const fileInputId = useId();
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
+  const setOpen = setControlledOpen !== undefined ? setControlledOpen : setInternalOpen;
   const [fileName, setFileName] = useState<string | null>(null);
   const [parsedItems, setParsedItems] = useState<BulkMenuItemInput[]>([]);
   const [parseErrors, setParseErrors] = useState<string[]>([]);
@@ -144,14 +156,18 @@ export function BulkImportDialog({ branchId }: { branchId: string | null }) {
         if (!next) resetState();
       }}
     >
-      <DialogTrigger
-        render={
-          <Button variant="outline" size="sm" className="gap-2">
-            <Upload className="h-4 w-4" />
-            <span>Bulk Import</span>
-          </Button>
-        }
-      />
+      {trigger !== undefined ? (
+        trigger && <DialogTrigger render={trigger as never} />
+      ) : controlledOpen !== undefined ? null : (
+        <DialogTrigger
+          render={
+            <Button variant="outline" size="sm" className="gap-2">
+              <Upload className="h-4 w-4" />
+              <span>Bulk Import</span>
+            </Button>
+          }
+        />
+      )}
 
       <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-6 overflow-hidden">
         <DialogHeader>

@@ -17,8 +17,20 @@ import { Switch } from "@/components/ui/switch";
 import { useCreateCategory } from "@/hooks/use-menu";
 import { ApiError } from "@/lib/api";
 
-export function AddCategoryDialog({ branchId }: { branchId: string | null }) {
-  const [open, setOpen] = useState(false);
+export function AddCategoryDialog({
+  branchId,
+  open: controlledOpen,
+  onOpenChange: setControlledOpen,
+  trigger,
+}: {
+  branchId: string | null;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  trigger?: React.ReactNode;
+}) {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
+  const setOpen = setControlledOpen !== undefined ? setControlledOpen : setInternalOpen;
   const [name, setName] = useState("");
   const [showOnWebsite, setShowOnWebsite] = useState(true);
   const createCategory = useCreateCategory(branchId);
@@ -41,13 +53,17 @@ export function AddCategoryDialog({ branchId }: { branchId: string | null }) {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger
-        render={
-          <Button variant="outline" size="sm">
-            Add category
-          </Button>
-        }
-      />
+      {trigger !== undefined ? (
+        trigger && <DialogTrigger render={trigger as never} />
+      ) : controlledOpen !== undefined ? null : (
+        <DialogTrigger
+          render={
+            <Button variant="outline" size="sm">
+              Add category
+            </Button>
+          }
+        />
+      )}
       <DialogContent>
         <form onSubmit={onSubmit}>
           <DialogHeader>
