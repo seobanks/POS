@@ -3,6 +3,7 @@
 import { Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { PERMISSIONS } from "@nodedr-restaurant/types";
 import { CreateRoleDialog } from "@/components/settings/create-role-dialog";
 import { EditRoleDialog } from "@/components/settings/edit-role-dialog";
 import { SettingsTabs } from "@/components/settings/settings-tabs";
@@ -92,7 +93,8 @@ export default function RolesPage() {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-muted-foreground">
-                    {role.permissions.length} granted
+                    <span className="font-medium text-foreground">{role.permissions.length}</span>
+                    <span className="text-xs text-muted-foreground"> / {PERMISSIONS.length} granted</span>
                   </TableCell>
                   <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-end gap-1">

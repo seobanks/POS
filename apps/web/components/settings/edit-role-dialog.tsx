@@ -1,27 +1,20 @@
 "use client";
 
 import { useState } from "react";
+import { ArrowLeft, Save, X } from "lucide-react";
 import { toast } from "sonner";
-import { PermissionChecklist } from "@/components/settings/permission-checklist";
+import { PetpoojaPermissionsEditor } from "@/components/settings/petpooja-permissions-editor";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useUpdateRole, type RoleWithPermissions } from "@/hooks/use-roles";
 import { ApiError } from "@/lib/api";
 
-// Mounted only while a specific role is being edited (see RolesPage), keyed
-// by role.id — a fresh mount per role means `label`/`permissionKeys` can be
-// lazily initialized straight from `role` with no reset effect needed even
-// when the user switches which role they're editing.
 export function EditRoleDialog({
   role,
   onClose,
@@ -42,11 +35,15 @@ export function EditRoleDialog({
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!label.trim()) {
+      toast.error("Role display label cannot be empty");
+      return;
+    }
     updateRole.mutate(
       { id: role.id, dto: { label: label.trim(), permissionKeys } },
       {
         onSuccess: () => {
-          toast.success(`${label.trim()} updated`);
+          toast.success(`${label.trim()} role permissions saved successfully`);
           onClose();
         },
         onError: (err) =>
@@ -57,52 +54,84 @@ export function EditRoleDialog({
 
   return (
     <Dialog open onOpenChange={(next) => !next && onClose()}>
-      <DialogContent className="sm:max-w-lg">
-        <form onSubmit={onSubmit} className="flex flex-col gap-4">
-          <DialogHeader>
-            <div className="flex items-center gap-2">
-              <DialogTitle>Edit role</DialogTitle>
-              <Badge variant={role.isSystem ? "secondary" : "outline"} className="font-normal text-xs">
-                {role.isSystem ? "Seeded" : "Custom"}
-              </Badge>
+      <DialogContent className="max-w-6xl w-[96vw] h-[92vh] max-h-[92vh] p-0 flex flex-col gap-0 overflow-hidden bg-background border shadow-2xl rounded-xl">
+        <form onSubmit={onSubmit} className="flex flex-col h-full overflow-hidden">
+          {/* Petpooja Top Navigation Header */}
+          <div className="flex items-center justify-between border-b border-border bg-card px-6 py-3.5 shrink-0">
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={onClose}
+                className="p-1.5 -ml-1 text-muted-foreground hover:text-foreground rounded-md hover:bg-muted/60 transition-colors"
+                aria-label="Back"
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </button>
+              <div>
+                <div className="flex items-center gap-2.5">
+                  <h2 className="text-base font-semibold text-foreground">
+                    Edit Billing User &middot; {role.label}
+                  </h2>
+                  <Badge variant={role.isSystem ? "secondary" : "outline"} className="font-normal text-xs">
+                    {role.isSystem ? "Seeded System Role" : "Custom Role"}
+                  </Badge>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  System Key: <span className="font-mono">{role.name}</span>
+                </p>
+              </div>
             </div>
-            <DialogDescription className="text-xs text-muted-foreground">
-              {role.isSystem
-                ? "Configure granted permissions and custom display label for this role."
-                : "Configure granted permissions and display label."}
-            </DialogDescription>
-          </DialogHeader>
 
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="r-edit-name">Name (system key)</Label>
-            <Input id="r-edit-name" value={role.name} disabled className="bg-muted text-muted-foreground" />
+            <div className="flex items-center gap-2.5">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={onClose}
+                className="h-9 px-4 text-xs font-medium cursor-pointer"
+              >
+                Discard
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                disabled={updateRole.isPending}
+                className="h-9 px-4 text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white cursor-pointer shadow-xs"
+              >
+                <Save className="h-3.5 w-3.5 mr-1.5" />
+                {updateRole.isPending ? "Saving changes…" : "Save Changes"}
+              </Button>
+            </div>
           </div>
 
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="r-edit-label">Display label</Label>
-            <Input
-              id="r-edit-label"
-              value={label}
-              onChange={(e) => setLabel(e.target.value)}
-              required
-              autoFocus
-            />
+          {/* Quick Details Bar */}
+          <div className="flex items-center gap-4 px-6 py-2.5 bg-muted/30 border-b border-border/80 shrink-0">
+            <div className="flex items-center gap-2">
+              <Label htmlFor="r-edit-label" className="text-xs font-medium text-muted-foreground shrink-0">
+                Display Label:
+              </Label>
+              <Input
+                id="r-edit-label"
+                value={label}
+                onChange={(e) => setLabel(e.target.value)}
+                required
+                className="h-7 w-64 text-xs bg-background"
+                placeholder="e.g. Head Cashier"
+              />
+            </div>
+            <div className="text-xs text-muted-foreground ml-auto">
+              Total Permissions Granted: <span className="font-semibold text-foreground">{permissionKeys.length}</span>
+            </div>
           </div>
 
-          <div className="flex flex-col gap-2">
-            <Label>Permissions</Label>
-            <PermissionChecklist
+          {/* Workspace Body: Petpooja Split Layout */}
+          <div className="flex-1 overflow-hidden">
+            <PetpoojaPermissionsEditor
               selected={permissionKeys}
               onToggle={togglePermission}
               onSetAll={setPermissionKeys}
             />
           </div>
-
-          <DialogFooter>
-            <Button type="submit" disabled={updateRole.isPending}>
-              {updateRole.isPending ? "Saving…" : "Save changes"}
-            </Button>
-          </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
