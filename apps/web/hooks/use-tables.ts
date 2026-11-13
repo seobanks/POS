@@ -167,3 +167,26 @@ export function useResolveTableRequest(branchId: string | null) {
   });
 }
 
+export function useCreateStaffTableRequest(branchId: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      tableId,
+      type,
+      notes,
+    }: {
+      tableId: string;
+      type: "WAITER" | "BILL";
+      notes?: string;
+    }) =>
+      api.post<{ ok: true; alreadyRequested: boolean; id: string }>(
+        `/tables/requests?branchId=${branchId}`,
+        { tableId, type, notes },
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["table-requests", branchId] });
+      queryClient.invalidateQueries({ queryKey: ["floors", branchId] });
+    },
+  });
+}
+

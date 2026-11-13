@@ -46,6 +46,7 @@ import {
 } from './settlement';
 import type { TaxMode } from '@nodedr-restaurant/types';
 import { VerifactuService } from '../verifactu/verifactu.service';
+import { KotPrintService } from './kot-print.service';
 
 const KOT_FORWARD_STATUSES = [
   'ACCEPTED',
@@ -64,6 +65,7 @@ export class OrdersService {
     private readonly giftCards: GiftCardsService,
     private readonly inventory: InventoryService,
     private readonly stockDepletionService: StockDepletionService,
+    private readonly kotPrint: KotPrintService,
     private readonly audit: AuditService,
     private readonly notifications: NotificationsService,
     private readonly marketing: MarketingService,
@@ -392,6 +394,15 @@ export class OrdersService {
       acceptance,
     });
 
+    // Auto-dispatch thermal KOT printing across kitchen stations
+    if (acceptance !== 'PENDING' && !this.isDeferred(scheduledFor)) {
+      void this.kotPrint.printOrder(branchId, order.id, false).catch((err) => {
+        this.logger.warn(
+          `Auto-KOT print on order ${order.id}: ${err?.message || err}`,
+        );
+      });
+    }
+
     const full = await this.getOrder(branchId, order.id);
 
     // "New order" is targeted by permission, not a hardcoded role — any
@@ -702,6 +713,14 @@ export class OrdersService {
                 `Stock depletion failed for offline order ${createdOrder.id}: ${err.message}`,
               ),
             );
+        } else {
+          void this.kotPrint
+            .printOrder(branchId, createdOrder.id, false)
+            .catch((err) =>
+              this.logger.warn(
+                `Auto-KOT print on offline order ${createdOrder.id}: ${err?.message || err}`,
+              ),
+            );
         }
 
         synced.push({
@@ -827,6 +846,14 @@ export class OrdersService {
     });
 
     this.realtime.emitToBranch(branchId, 'order.updated', { id: orderId });
+
+    // Auto-dispatch thermal KOT printing for newly added round items
+    void this.kotPrint.printOrder(branchId, orderId, false).catch((err) => {
+      this.logger.warn(
+        `Auto-KOT print on add items ${orderId}: ${err?.message || err}`,
+      );
+    });
+
     return this.getOrder(branchId, updated.id);
   }
 

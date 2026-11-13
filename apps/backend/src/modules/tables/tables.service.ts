@@ -211,4 +211,53 @@ export class TablesService {
     this.realtime.emitToBranch(branchId, 'table.request', { id });
     return updated;
   }
+
+  async createRequest(
+    branchId: string,
+    tableId: string,
+    type: 'WAITER' | 'BILL',
+    notes?: string,
+  ) {
+    const table = await this.prisma.table.findFirst({
+      where: { id: tableId, floor: { branchId } },
+      include: { floor: true },
+    });
+    if (!table) throw new NotFoundException('Table not found');
+
+    const existing = await this.prisma.tableRequest.findFirst({
+      where: { tableId, type, resolvedAt: null },
+    });
+    if (existing) {
+      return { ok: true, alreadyRequested: true, id: existing.id };
+    }
+
+    const created = await this.prisma.tableRequest.create({
+      data: { branchId, tableId, type },
+    });
+
+    this.realtime.emitToBranch(branchId, 'table.request', { id: created.id });
+
+    try {
+      const tableName = table.name ?? `Table ${table.number}`;
+      await this.prisma.notification.create({
+        data: {
+          branchId,
+          type: type === 'BILL' ? 'TABLE_BILL' : 'TABLE_WAITER',
+          title:
+            type === 'BILL'
+              ? `${tableName} requested bill`
+              : `${tableName} called waiter`,
+          body:
+            notes ||
+            (type === 'BILL'
+              ? 'Captain requested bill at counter'
+              : 'Assistance requested at table'),
+        },
+      });
+    } catch {
+      // Best-effort notification creation
+    }
+
+    return { ok: true, alreadyRequested: false, id: created.id };
+  }
 }

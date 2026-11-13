@@ -24,6 +24,7 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useOrder, type OrderDetail } from "@/hooks/use-orders";
 import { usePrintOrderUsb } from "@/hooks/use-print";
+import { useCreateStaffTableRequest } from "@/hooks/use-tables";
 import { ApiError } from "@/lib/api";
 import { formatCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -46,7 +47,9 @@ export function CaptainRunningOrder({
     orderId,
   );
   const printUsb = usePrintOrderUsb(branchId);
+  const createStaffRequest = useCreateStaffTableRequest(branchId);
   const [isPrinting, setIsPrinting] = useState(false);
+  const [isAlertingCounter, setIsAlertingCounter] = useState(false);
 
   // Calculate elapsed dining time in minutes
   const elapsedMinutes = useMemo(() => {
@@ -63,14 +66,62 @@ export function CaptainRunningOrder({
       {
         onSuccess: () => {
           setIsPrinting(false);
+          // Also notify billing counter of bill print in real time
+          if (order.tableId) {
+            createStaffRequest.mutate({
+              tableId: order.tableId,
+              type: "BILL",
+              notes: "Thermal bill printed by Captain",
+            });
+          }
+          if (typeof navigator !== "undefined" && navigator.vibrate) {
+            try {
+              navigator.vibrate([40, 60]);
+            } catch {
+              // ignore
+            }
+          }
           toast.success(
-            `Bill for Table ${tableNumber || order.table?.number || ""} printed at counter!`,
+            `Thermal bill printed at Counter & Cashier alerted for Table ${tableNumber || order.table?.number || ""}!`,
           );
         },
         onError: (err) => {
           setIsPrinting(false);
           toast.error(
             err instanceof ApiError ? err.message : "Could not print bill",
+          );
+        },
+      },
+    );
+  };
+
+  const handleAlertCounter = () => {
+    if (!order?.tableId) return;
+    setIsAlertingCounter(true);
+    createStaffRequest.mutate(
+      {
+        tableId: order.tableId,
+        type: "BILL",
+        notes: `Table ${tableNumber || order.table?.number || ""} requested bill`,
+      },
+      {
+        onSuccess: () => {
+          setIsAlertingCounter(false);
+          if (typeof navigator !== "undefined" && navigator.vibrate) {
+            try {
+              navigator.vibrate(50);
+            } catch {
+              // ignore
+            }
+          }
+          toast.success(
+            `Billing Counter alerted for Table ${tableNumber || order.table?.number || ""}!`,
+          );
+        },
+        onError: (err) => {
+          setIsAlertingCounter(false);
+          toast.error(
+            err instanceof ApiError ? err.message : "Could not alert billing counter",
           );
         },
       },
@@ -332,37 +383,53 @@ export function CaptainRunningOrder({
         })}
       </div>
 
-      {/* Bottom Sticky Action Bar: Print Bill & Add More Dishes */}
+      {/* Bottom Sticky Action Bar: Print Thermal Bill, Alert Counter & Add More Dishes */}
       <div className="p-3 border-t border-border/80 bg-background/95 backdrop-blur-sm space-y-2 shrink-0">
-        <div className="flex items-center gap-2">
-          {/* Print Bill Button */}
+        <div className="grid grid-cols-2 gap-2">
+          {/* Print Bill (Thermal Printer) Button */}
+          <Button
+            type="button"
+            className="h-12 rounded-xl text-xs font-bold bg-primary hover:bg-primary/90 text-primary-foreground active:scale-[0.98] gap-2 shadow-xs"
+            onClick={handlePrintBill}
+            disabled={isPrinting || isAlertingCounter}
+          >
+            {isPrinting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Printer className="h-4 w-4" />
+            )}
+            <span>Print Bill (Thermal)</span>
+          </Button>
+
+          {/* Alert Billing Counter Button */}
           <Button
             type="button"
             variant="outline"
-            className="flex-1 h-12 rounded-xl text-xs font-bold border-border hover:bg-secondary active:scale-[0.98] gap-2 shadow-xs"
-            onClick={handlePrintBill}
-            disabled={isPrinting}
+            className="h-12 rounded-xl text-xs font-bold border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20 active:scale-[0.98] gap-2 shadow-xs"
+            onClick={handleAlertCounter}
+            disabled={isPrinting || isAlertingCounter}
           >
-            {isPrinting ? (
-              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            {isAlertingCounter ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
-              <Printer className="h-4 w-4 text-primary" />
+              <Bell className="h-4 w-4 text-amber-600 dark:text-amber-400" />
             )}
-            <span>Print Bill at Counter</span>
+            <span>Alert Counter</span>
           </Button>
-
-          {/* Add Dishes Button (switches tab or triggers parent callback) */}
-          {onAddMoreItems && (
-            <Button
-              type="button"
-              className="flex-1 h-12 rounded-xl text-xs font-bold gap-2 shadow-sm active:scale-[0.98]"
-              onClick={onAddMoreItems}
-            >
-              <Plus className="h-4 w-4" />
-              <span>Add More Dishes</span>
-            </Button>
-          )}
         </div>
+
+        {/* Add Dishes Button (Full Width next round punch) */}
+        {onAddMoreItems && (
+          <Button
+            type="button"
+            variant="secondary"
+            className="w-full h-11 rounded-xl text-xs font-bold gap-2 shadow-2xs active:scale-[0.98] border border-border/80"
+            onClick={onAddMoreItems}
+          >
+            <Plus className="h-4 w-4" />
+            <span>Add More Dishes (Punch Next Round)</span>
+          </Button>
+        )}
       </div>
     </div>
   );

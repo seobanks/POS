@@ -58,7 +58,7 @@ function CaptainPageContent() {
 
   // Otherwise show the floor/table overview grid with header
   return (
-    <div className="flex flex-col h-[100dvh] bg-zinc-950 text-zinc-100 overflow-hidden">
+    <div className="flex flex-col h-[100dvh] bg-background text-foreground overflow-hidden">
       <CaptainHeader
         selectedFloorId={selectedFloorId}
         onSelectFloor={setSelectedFloorId}
@@ -75,14 +75,14 @@ function CaptainPageContent() {
 
 function CaptainPageFallback() {
   return (
-    <div className="flex min-h-[100dvh] flex-col bg-zinc-950 p-4 space-y-4">
-      <div className="flex items-center justify-between pb-2 border-b border-zinc-800">
-        <Skeleton className="h-9 w-32 rounded-xl bg-zinc-900" />
-        <Skeleton className="h-9 w-24 rounded-xl bg-zinc-900" />
+    <div className="flex min-h-[100dvh] flex-col bg-background text-foreground p-4 space-y-4">
+      <div className="flex items-center justify-between pb-2 border-b border-border">
+        <Skeleton className="h-9 w-32 rounded-xl bg-muted" />
+        <Skeleton className="h-9 w-24 rounded-xl bg-muted" />
       </div>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
         {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-          <Skeleton key={i} className="h-32 rounded-2xl bg-zinc-900" />
+          <Skeleton key={i} className="h-32 rounded-2xl bg-muted" />
         ))}
       </div>
     </div>

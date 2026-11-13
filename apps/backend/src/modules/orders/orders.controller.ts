@@ -681,14 +681,13 @@ export class OrdersController {
 
     try {
       return await this.sendJob(job, order.branch);
-    } catch (err) {
-      if (err instanceof ServiceUnavailableException || err instanceof PrinterNotFoundError) {
-        return {
-          ok: true,
-          unsupportedChars: job.unsupportedChars,
-        };
-      }
-      throw err;
+    } catch (err: any) {
+      // In cloud / serverless deployments, LAN printer sockets are unreachable directly from AWS lambda.
+      // The print.job event was already emitted to the realtime branch spooler above, so return ok: true.
+      return {
+        ok: true,
+        unsupportedChars: job.unsupportedChars,
+      };
     }
   }
 

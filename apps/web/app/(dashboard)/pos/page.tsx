@@ -19,7 +19,7 @@ import { Card } from "@/components/ui/card";
 import { useBranch } from "@/hooks/use-branch";
 import type { MenuItem } from "@/hooks/use-menu";
 import { useOfflinePos } from "@/hooks/use-offline-pos";
-import { usePrintOrderUsb } from "@/hooks/use-print";
+import { usePrintOrderUsb, useWebPrintBridge } from "@/hooks/use-print";
 import {
   useAddOrderItems,
   useCreateOrder,
@@ -105,6 +105,22 @@ function PosPageInner() {
   const createOrder = useCreateOrder(branchId);
   const addOrderItems = useAddOrderItems(branchId);
   const printUsb = usePrintOrderUsb(branchId);
+
+  // Realtime LAN print bridge listener for incoming KOTs & Bill print requests from Captains
+  useWebPrintBridge(branchId, {
+    enabled: !!branchId,
+    onJob: (job) => {
+      if (job.jobType === "KOT") {
+        toast.info(
+          `🖨️ KOT Ticket #${job.ticketNumber ?? ""} printed for ${job.stationName ?? "Kitchen"}`,
+        );
+      } else if (job.jobType === "RECEIPT") {
+        toast.success(
+          `🖨️ Thermal Bill printed at counter for Order #${job.ticketNumber ?? ""}`,
+        );
+      }
+    },
+  });
   const openBillsQuery = useOpenOrdersForTable(
     branchId,
     orderType === "DINE_IN" ? tableId || null : null,

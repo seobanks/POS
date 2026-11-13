@@ -45,6 +45,22 @@ export class TablesController {
     return this.tablesService.listOpenRequests(branchId);
   }
 
+  @Auth('tables.view')
+  @Post('requests')
+  async createRequest(
+    @CurrentUser() user: SessionUser,
+    @Query('branchId') branchId: string,
+    @Body() body: { tableId: string; type: 'WAITER' | 'BILL'; notes?: string },
+  ) {
+    await this.branchAccess.assertAccess(user.restaurantId, branchId);
+    return this.tablesService.createRequest(
+      branchId,
+      body.tableId,
+      body.type,
+      body.notes,
+    );
+  }
+
   @Auth('tables.view', 'orders.edit')
   @Patch('requests/:id/resolve')
   async resolveRequest(

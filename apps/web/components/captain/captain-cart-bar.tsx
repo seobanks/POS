@@ -25,6 +25,7 @@ import {
   useCreateOrder,
   type CreatedOrder,
 } from "@/hooks/use-orders";
+import { useOfflinePos } from "@/hooks/use-offline-pos";
 import { usePrintKot } from "@/hooks/use-print";
 import { ApiError } from "@/lib/api";
 import { formatCurrency } from "@/lib/format";
@@ -63,6 +64,7 @@ export function CaptainCartBar({
   const createOrder = useCreateOrder(branchId);
   const addOrderItems = useAddOrderItems(branchId);
   const printKot = usePrintKot(branchId);
+  const { isOnline, saveOfflineOrder } = useOfflinePos({ branchId });
 
   const isSubmitting = createOrder.isPending || addOrderItems.isPending;
 
@@ -83,6 +85,42 @@ export function CaptainCartBar({
 
   const handleSendKot = () => {
     if (cartLines.length === 0 || isSubmitting) return;
+
+    // Offline mode fallback: store in IndexedDB and queue for auto-sync
+    if ((!isOnline || (typeof navigator !== "undefined" && !navigator.onLine)) && branchId) {
+      if (typeof navigator !== "undefined" && navigator.vibrate) {
+        try {
+          navigator.vibrate([80, 50, 80]);
+        } catch {
+          // Ignore vibration failures
+        }
+      }
+
+      const offlineItems = cartLines.map((l) => ({
+        menuItemId: l.menuItemId,
+        nameSnapshot: l.name,
+        quantity: l.quantity,
+        unitPrice: l.customPrice ?? l.unitPrice,
+        kitchenNote: l.kitchenNote,
+        modifiers: l.modifierLabels.map((label, idx) => ({
+          modifierId: l.modifierIds[idx],
+          nameSnapshot: label,
+          price: 0,
+        })),
+      }));
+
+      void saveOfflineOrder({
+        branchId,
+        orderType: "DINE_IN",
+        tableId,
+        guestCount: guestCount && guestCount > 0 ? guestCount : undefined,
+        items: offlineItems,
+      }).then(() => {
+        onClearCart();
+        setReviewOpen(false);
+      });
+      return;
+    }
 
     const items = cartLines.map((l) => ({
       menuItemId: l.menuItemId,
