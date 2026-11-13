@@ -4,6 +4,8 @@ import type { TableStatusDto } from "@nodedr-restaurant/types";
 import { ClipboardList, Merge, Plus, QrCode, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { toast } from "sonner";
+import { ApiError } from "@/lib/api";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -80,7 +82,46 @@ export function TableTile({
             <DropdownMenuItem
               key={status}
               disabled={status === table.status}
-              onClick={() => updateStatus.mutate({ id: table.id, status })}
+              onClick={() => {
+                updateStatus.mutate(
+                  { id: table.id, status },
+                  {
+                    onSuccess: () => {
+                      toast.success(`Table ${table.name ?? `T${table.number}`} marked ${STATUS_LABEL[status]}`);
+                    },
+                    onError: (err) => {
+                      const msg = err instanceof ApiError ? err.message : "Could not update table status";
+                      if (msg.includes("open bill")) {
+                        toast.error(msg, {
+                          action: {
+                            label: "Force Release",
+                            onClick: () => {
+                              if (
+                                confirm(
+                                  `Table ${table.name ?? `T${table.number}`} has an open bill. Force cancel the open order and mark table ${STATUS_LABEL[status]}?`,
+                                )
+                              ) {
+                                updateStatus.mutate(
+                                  { id: table.id, status, force: true },
+                                  {
+                                    onSuccess: () =>
+                                      toast.success(`Table ${table.name ?? `T${table.number}`} freed successfully`),
+                                    onError: (e) =>
+                                      toast.error(e instanceof ApiError ? e.message : "Could not force release table"),
+                                  },
+                                );
+                              }
+                            },
+                          },
+                          duration: 8000,
+                        });
+                      } else {
+                        toast.error(msg);
+                      }
+                    },
+                  },
+                );
+              }}
             >
               {STATUS_LABEL[status]}
             </DropdownMenuItem>

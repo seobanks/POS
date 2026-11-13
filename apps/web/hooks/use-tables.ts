@@ -134,8 +134,19 @@ export function useDeleteTable(branchId: string | null) {
 export function useUpdateTableStatus(branchId: string | null) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, status }: { id: string; status: TableStatusDto }) =>
-      api.patch(`/tables/${id}/status?branchId=${branchId}`, { status }),
+    mutationFn: ({
+      id,
+      status,
+      force,
+    }: {
+      id: string;
+      status: TableStatusDto;
+      force?: boolean;
+    }) =>
+      api.patch(`/tables/${id}/status?branchId=${branchId}`, {
+        status,
+        ...(force ? { force: true } : {}),
+      }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["floors", branchId] }),
   });
 }

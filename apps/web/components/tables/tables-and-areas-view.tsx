@@ -19,6 +19,7 @@ import {
 import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
+import { ApiError } from "@/lib/api";
 import { AddFloorDialog } from "@/components/tables/add-floor-dialog";
 import { TableEditorDialog } from "@/components/tables/table-editor-dialog";
 import { Badge } from "@/components/ui/badge";
@@ -312,24 +313,40 @@ export function TablesAndAreasView({
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem
-                  onClick={() => {
-                    selectedTableIds.forEach((id) =>
-                      updateTableStatus.mutate({ id, status: "AVAILABLE" }),
-                    );
-                    toast.success(`Marked ${selectedTableIds.length} tables Available`);
-                    setSelectedTableIds([]);
+                  onClick={async () => {
+                    const count = selectedTableIds.length;
+                    try {
+                      await Promise.all(
+                        selectedTableIds.map((id) =>
+                          updateTableStatus.mutateAsync({ id, status: "AVAILABLE" }),
+                        ),
+                      );
+                      toast.success(`Marked ${count} table${count === 1 ? "" : "s"} Available`);
+                      setSelectedTableIds([]);
+                    } catch (err) {
+                      const msg = err instanceof ApiError ? err.message : "Could not mark selected tables Available";
+                      toast.error(msg);
+                    }
                   }}
                   className="text-xs"
                 >
                   Mark Available
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  onClick={() => {
-                    selectedTableIds.forEach((id) =>
-                      updateTableStatus.mutate({ id, status: "OUT_OF_SERVICE" }),
-                    );
-                    toast.success(`Marked ${selectedTableIds.length} tables Out of Service`);
-                    setSelectedTableIds([]);
+                  onClick={async () => {
+                    const count = selectedTableIds.length;
+                    try {
+                      await Promise.all(
+                        selectedTableIds.map((id) =>
+                          updateTableStatus.mutateAsync({ id, status: "OUT_OF_SERVICE" }),
+                        ),
+                      );
+                      toast.success(`Marked ${count} table${count === 1 ? "" : "s"} Out of Service`);
+                      setSelectedTableIds([]);
+                    } catch (err) {
+                      const msg = err instanceof ApiError ? err.message : "Could not mark selected tables Out of Service";
+                      toast.error(msg);
+                    }
                   }}
                   className="text-xs text-amber-600"
                 >
@@ -656,10 +673,16 @@ export function TablesAndAreasView({
                             "px-2 py-0.5 text-[10px] font-medium border",
                             t.status === "AVAILABLE"
                               ? "bg-emerald-500/10 text-emerald-700 border-emerald-500/20"
-                              : "bg-muted text-muted-foreground border-border",
+                              : t.status === "OCCUPIED"
+                                ? "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20"
+                                : "bg-muted text-muted-foreground border-border",
                           )}
                         >
-                          {t.status === "AVAILABLE" ? "Reservable" : "Not Reservable"}
+                          {t.status === "AVAILABLE"
+                            ? "Reservable"
+                            : t.status === "OCCUPIED"
+                              ? "Occupied (Active Bill)"
+                              : "Not Reservable"}
                         </Badge>
                       </TableCell>
 
@@ -669,10 +692,55 @@ export function TablesAndAreasView({
                           checked={t.status !== "OUT_OF_SERVICE"}
                           disabled={!canManage || updateTableStatus.isPending}
                           onCheckedChange={(checked) => {
-                            updateTableStatus.mutate({
-                              id: t.id,
-                              status: checked ? "AVAILABLE" : "OUT_OF_SERVICE",
-                            });
+                            const targetStatus = checked ? "AVAILABLE" : "OUT_OF_SERVICE";
+                            updateTableStatus.mutate(
+                              {
+                                id: t.id,
+                                status: targetStatus,
+                              },
+                              {
+                                onSuccess: () => {
+                                  toast.success(
+                                    `Table ${t.number} marked ${targetStatus === "AVAILABLE" ? "Available" : "Out of Service"}`,
+                                  );
+                                },
+                                onError: (err) => {
+                                  const msg =
+                                    err instanceof ApiError ? err.message : "Could not update table status";
+                                  if (msg.includes("open bill")) {
+                                    toast.error(msg, {
+                                      action: {
+                                        label: "Force Release",
+                                        onClick: () => {
+                                          if (
+                                            confirm(
+                                              `Table ${t.number} has an open bill. Force cancel the open bill and mark Available?`,
+                                            )
+                                          ) {
+                                            updateTableStatus.mutate(
+                                              { id: t.id, status: "AVAILABLE", force: true },
+                                              {
+                                                onSuccess: () =>
+                                                  toast.success(`Table ${t.number} freed successfully`),
+                                                onError: (e) =>
+                                                  toast.error(
+                                                    e instanceof ApiError
+                                                      ? e.message
+                                                      : "Could not force release table",
+                                                  ),
+                                              },
+                                            );
+                                          }
+                                        },
+                                      },
+                                      duration: 8000,
+                                    });
+                                  } else {
+                                    toast.error(msg);
+                                  }
+                                },
+                              },
+                            );
                           }}
                         />
                       </TableCell>

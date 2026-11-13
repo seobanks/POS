@@ -172,15 +172,18 @@ export class TablesController {
   async updateStatus(
     @CurrentUser() user: SessionUser,
     @Query('branchId') branchId: string,
+    @Query('force') queryForce: string | undefined,
     @Param('id') id: string,
-    @Body() body: { status: never; assignedWaiterId?: string },
+    @Body() body: { status: never; assignedWaiterId?: string; force?: boolean },
   ) {
     await this.branchAccess.assertAccess(user.restaurantId, branchId);
+    const force = Boolean(body?.force) || queryForce === 'true' || queryForce === '1';
     return this.tablesService.updateTableStatus(
       branchId,
       id,
       body.status,
       body.assignedWaiterId,
+      force,
     );
   }
 

@@ -135,6 +135,7 @@ export class TablesService {
     id: string,
     status: TableStatusDto,
     assignedWaiterId?: string,
+    force = false,
   ) {
     await this.assertTableInBranch(branchId, id);
     // A table with an unpaid bill cannot be marked free/reserved/cleaning by
@@ -143,12 +144,23 @@ export class TablesService {
     if (status !== 'OCCUPIED') {
       const open = await this.prisma.order.findFirst({
         where: { tableId: id, status: 'OPEN' },
-        select: { orderNumber: true },
+        select: { id: true, orderNumber: true },
       });
       if (open) {
-        throw new ConflictException(
-          `This table has an open bill (#${open.orderNumber}) - pay or cancel it first`,
-        );
+        if (force) {
+          await this.prisma.order.update({
+            where: { id: open.id },
+            data: {
+              status: 'CANCELLED',
+              cancelReason: 'Table status manually reset to Available',
+            },
+          });
+          this.realtime.emitToBranch(branchId, 'order.cancelled', { id: open.id });
+        } else {
+          throw new ConflictException(
+            `This table has an open bill (#${open.orderNumber}) - pay or cancel it first`,
+          );
+        }
       }
     }
     const table = await this.prisma.table.update({
