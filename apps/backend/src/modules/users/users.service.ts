@@ -18,7 +18,21 @@ const SELECT = {
   isActive: true,
   createdAt: true,
   roleId: true,
-  role: { select: { id: true, name: true, label: true } },
+  role: {
+    select: {
+      id: true,
+      name: true,
+      label: true,
+      isSystem: true,
+      permissions: {
+        select: {
+          permission: {
+            select: { key: true, label: true, category: true },
+          },
+        },
+      },
+    },
+  },
   branches: { select: { branch: { select: { id: true, name: true } } } },
 } as const;
 
@@ -235,6 +249,159 @@ export class UsersService {
     });
 
     return { ok: true };
+  }
+
+  async getStaffPermissions(restaurantId: string, id: string) {
+    const user = await this.prisma.user.findFirst({
+      where: { id, restaurantId },
+      include: {
+        role: {
+          include: {
+            permissions: {
+              include: { permission: true },
+            },
+          },
+        },
+      },
+    });
+    if (!user) {
+      throw new NotFoundException('Staff account not found');
+    }
+
+    const isCustomized = !user.role.isSystem || user.role.name.startsWith('STAFF_');
+
+    return {
+      userId: user.id,
+      name: user.name,
+      roleId: user.role.id,
+      roleName: user.role.name,
+      roleLabel: user.role.label,
+      isCustomized,
+      permissionKeys: user.role.permissions.map((p) => p.permission.key),
+    };
+  }
+
+  async updateStaffPermissions(
+    restaurantId: string,
+    actorId: string,
+    id: string,
+    permissionKeys: string[],
+    resetToRoleId?: string,
+  ) {
+    const user = await this.prisma.user.findFirst({
+      where: { id, restaurantId },
+      include: {
+        role: true,
+      },
+    });
+    if (!user) {
+      throw new NotFoundException('Staff account not found');
+    }
+
+    // Reset to base role if requested
+    if (resetToRoleId) {
+      const baseRole = await this.prisma.role.findFirst({
+        where: { id: resetToRoleId, restaurantId },
+      });
+      if (!baseRole) {
+        throw new BadRequestException('Target role not found');
+      }
+
+      const previousCustomRoleId = user.role.name.startsWith('STAFF_') ? user.role.id : null;
+
+      await this.prisma.user.update({
+        where: { id },
+        data: { roleId: baseRole.id },
+      });
+
+      if (previousCustomRoleId) {
+        const count = await this.prisma.user.count({ where: { roleId: previousCustomRoleId } });
+        if (count === 0) {
+          await this.prisma.role.delete({ where: { id: previousCustomRoleId } }).catch(() => {});
+        }
+      }
+
+      await this.audit.record({
+        userId: actorId,
+        action: 'staff.permissions_reset',
+        entity: 'User',
+        entityId: id,
+        metadata: { roleName: baseRole.name, roleLabel: baseRole.label },
+      });
+
+      return this.getStaffPermissions(restaurantId, id);
+    }
+
+    // Resolve requested permissions from DB
+    const permissions = await this.prisma.permission.findMany({
+      where: { key: { in: permissionKeys } },
+      select: { id: true, key: true },
+    });
+
+    let targetRoleId = user.roleId;
+
+    // Check if user already has a dedicated customized role
+    if (user.role.name === `STAFF_${user.id}`) {
+      await this.prisma.rolePermission.deleteMany({
+        where: { roleId: targetRoleId },
+      });
+      if (permissions.length > 0) {
+        await this.prisma.rolePermission.createMany({
+          data: permissions.map((p) => ({
+            roleId: targetRoleId,
+            permissionId: p.id,
+          })),
+        });
+      }
+    } else {
+      // Create or locate dedicated role for this user
+      let customRole = await this.prisma.role.findFirst({
+        where: { restaurantId, name: `STAFF_${user.id}` },
+      });
+
+      if (!customRole) {
+        customRole = await this.prisma.role.create({
+          data: {
+            restaurantId,
+            name: `STAFF_${user.id}`,
+            label: `${user.name} (${user.role.label})`,
+            isSystem: false,
+          },
+        });
+      }
+
+      targetRoleId = customRole.id;
+
+      await this.prisma.rolePermission.deleteMany({
+        where: { roleId: targetRoleId },
+      });
+      if (permissions.length > 0) {
+        await this.prisma.rolePermission.createMany({
+          data: permissions.map((p) => ({
+            roleId: targetRoleId,
+            permissionId: p.id,
+          })),
+        });
+      }
+
+      await this.prisma.user.update({
+        where: { id },
+        data: { roleId: targetRoleId },
+      });
+    }
+
+    await this.audit.record({
+      userId: actorId,
+      action: 'staff.permissions_customized',
+      entity: 'User',
+      entityId: id,
+      metadata: {
+        staffName: user.name,
+        permissionCount: permissions.length,
+      },
+    });
+
+    return this.getStaffPermissions(restaurantId, id);
   }
 
   private async assertRoleInRestaurant(restaurantId: string, roleId: string) {

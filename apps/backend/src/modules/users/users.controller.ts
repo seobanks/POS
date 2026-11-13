@@ -60,6 +60,31 @@ export class UsersController {
   }
 
   @Auth('users.manage')
+  @Get(':id/permissions')
+  getStaffPermissions(
+    @CurrentUser() user: SessionUser,
+    @Param('id') id: string,
+  ) {
+    return this.usersService.getStaffPermissions(user.restaurantId, id);
+  }
+
+  @Auth('users.manage')
+  @Patch(':id/permissions')
+  updateStaffPermissions(
+    @CurrentUser() user: SessionUser,
+    @Param('id') id: string,
+    @Body() body: { permissionKeys?: string[]; resetToRoleId?: string },
+  ) {
+    return this.usersService.updateStaffPermissions(
+      user.restaurantId,
+      user.id,
+      id,
+      body.permissionKeys ?? [],
+      body.resetToRoleId,
+    );
+  }
+
+  @Auth('users.manage')
   @Delete(':id')
   remove(@CurrentUser() user: SessionUser, @Param('id') id: string) {
     return this.usersService.remove(user.restaurantId, user.id, id);

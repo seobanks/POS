@@ -1,8 +1,11 @@
 "use client";
 
-import { Trash2 } from "lucide-react";
+import { useState } from "react";
+import { Shield, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { PERMISSIONS } from "@nodedr-restaurant/types";
 import { AddStaffDialog } from "@/components/settings/add-staff-dialog";
+import { EditStaffPermissionsDialog } from "@/components/settings/edit-staff-permissions-dialog";
 import { SettingsTabs } from "@/components/settings/settings-tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,9 +29,15 @@ export default function StaffPage() {
   const { data: currentUser } = useCurrentUser();
   const updateStaff = useUpdateStaff();
   const deleteStaff = useDeleteStaff();
+  const [editingPermissionsStaff, setEditingPermissionsStaff] = useState<StaffMember | null>(null);
 
   const onResetTwoFactor = (member: StaffMember) => {
-    if (!confirm(`Turn off two-factor authentication for ${member.name}? They will sign in with just their password until they set it up again.`)) return;
+    if (
+      !confirm(
+        `Turn off two-factor authentication for ${member.name}? They will sign in with just their password until they set it up again.`,
+      )
+    )
+      return;
     api.post(`/auth/2fa/reset/${member.id}`).then(
       () => toast.success(`Two-factor authentication reset for ${member.name}`),
       (err) => toast.error(err instanceof ApiError ? err.message : "Could not reset"),
@@ -55,7 +64,12 @@ export default function StaffPage() {
 
       <Card className="flex flex-col gap-4 p-6">
         <div className="flex items-center justify-between">
-          <h2 className="text-[18px] font-medium text-foreground">Staff accounts</h2>
+          <div>
+            <h2 className="text-[18px] font-medium text-foreground">Staff accounts</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Manage team members, roles, branches, and custom granular Petpooja permissions per staff account.
+            </p>
+          </div>
           <AddStaffDialog />
         </div>
 
@@ -72,68 +86,117 @@ export default function StaffPage() {
                 <TableHead>Name</TableHead>
                 <TableHead>Username / Contact</TableHead>
                 <TableHead>Role</TableHead>
+                <TableHead>Permissions</TableHead>
                 <TableHead>Branches</TableHead>
                 <TableHead className="text-right">Active</TableHead>
-                <TableHead className="w-40" />
+                <TableHead className="w-48 text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {staff.map((member) => (
-                <TableRow key={member.id}>
-                  <TableCell className="font-medium text-foreground">{member.name}</TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {member.email || member.phone || "—"}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="secondary" className="font-normal">
-                      {member.role.label}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {member.branches.map((b) => b.branch.name).join(", ") || "—"}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Switch
-                      checked={member.isActive}
-                      onCheckedChange={(checked) =>
-                        updateStaff.mutate(
-                          { id: member.id, dto: { isActive: checked } },
-                          {
-                            onSuccess: () =>
-                              toast.success(`${member.name} ${checked ? "enabled" : "disabled"}`),
-                            onError: (err) =>
-                              toast.error(err instanceof ApiError ? err.message : "Could not update"),
-                          },
-                        )
-                      }
-                    />
-                  </TableCell>
-                  <TableCell>
-                    {member.id !== currentUser?.user.id && (
+              {staff.map((member) => {
+                const isCustom =
+                  member.role.isSystem === false || member.role.name.startsWith("STAFF_");
+                const grantedCount = member.role.permissions?.length ?? 0;
+
+                return (
+                  <TableRow
+                    key={member.id}
+                    className="cursor-pointer hover:bg-muted/40 transition-colors"
+                    onClick={() => setEditingPermissionsStaff(member)}
+                  >
+                    <TableCell className="font-medium text-foreground">
+                      {member.name}
+                      {member.id === currentUser?.user.id && (
+                        <span className="ml-2 text-[11px] text-muted-foreground font-normal">(You)</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {member.email || member.phone || "—"}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="secondary" className="font-normal text-xs">
+                        {member.role.label}
+                      </Badge>
+                    </TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        onClick={() => setEditingPermissionsStaff(member)}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-border bg-card hover:bg-muted transition-colors text-xs font-medium text-foreground cursor-pointer shadow-2xs"
+                        title={`Edit granular permissions for ${member.name}`}
+                      >
+                        <Shield className="h-3.5 w-3.5 text-primary" />
+                        <span>
+                          {grantedCount} / {PERMISSIONS.length}
+                        </span>
+                        {isCustom && (
+                          <Badge
+                            variant="secondary"
+                            className="text-[10px] bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20 px-1 py-0 ml-0.5"
+                          >
+                            Custom
+                          </Badge>
+                        )}
+                      </button>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {member.branches.map((b) => b.branch.name).join(", ") || "All Branches"}
+                    </TableCell>
+                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                      <Switch
+                        checked={member.isActive}
+                        onCheckedChange={(checked) =>
+                          updateStaff.mutate(
+                            { id: member.id, dto: { isActive: checked } },
+                            {
+                              onSuccess: () =>
+                                toast.success(`${member.name} ${checked ? "enabled" : "disabled"}`),
+                              onError: (err) =>
+                                toast.error(err instanceof ApiError ? err.message : "Could not update"),
+                            },
+                          )
+                        }
+                      />
+                    </TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-1">
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-8 px-2 text-xs text-muted-foreground"
-                          title="Reset two-factor authentication (lost device)"
-                          onClick={() => onResetTwoFactor(member)}
+                          className="h-8 px-2 text-xs text-primary hover:text-primary font-medium"
+                          title={`Edit ${member.name}'s permissions`}
+                          onClick={() => setEditingPermissionsStaff(member)}
                         >
-                          Reset 2FA
+                          <Shield className="h-3.5 w-3.5 mr-1" />
+                          Permissions
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                          title="Delete staff account"
-                          onClick={() => onDelete(member)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        {member.id !== currentUser?.user.id && (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 px-2 text-xs text-muted-foreground"
+                              title="Reset two-factor authentication (lost device)"
+                              onClick={() => onResetTwoFactor(member)}
+                            >
+                              Reset 2FA
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                              title="Delete staff account"
+                              onClick={() => onDelete(member)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </>
+                        )}
                       </div>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         ) : (
@@ -143,6 +206,14 @@ export default function StaffPage() {
           </div>
         )}
       </Card>
+
+      {editingPermissionsStaff && (
+        <EditStaffPermissionsDialog
+          key={editingPermissionsStaff.id}
+          staff={editingPermissionsStaff}
+          onClose={() => setEditingPermissionsStaff(null)}
+        />
+      )}
     </div>
   );
 }

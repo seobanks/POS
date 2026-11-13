@@ -12,7 +12,13 @@ export interface StaffMember {
   isActive: boolean;
   createdAt: string;
   roleId: string;
-  role: { id: string; name: string; label: string };
+  role: {
+    id: string;
+    name: string;
+    label: string;
+    isSystem?: boolean;
+    permissions?: { permission: { key: string; label: string; category: string } }[];
+  };
   branches: { branch: { id: string; name: string } }[];
 }
 
@@ -50,6 +56,26 @@ export function useUpdateStaff() {
     mutationFn: ({ id, dto }: { id: string; dto: UpdateStaffDto }) =>
       api.patch<StaffMember>(`/users/${id}`, dto),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["staff"] }),
+  });
+}
+
+export function useUpdateStaffPermissions() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      permissionKeys,
+      resetToRoleId,
+    }: {
+      id: string;
+      permissionKeys?: string[];
+      resetToRoleId?: string;
+    }) =>
+      api.patch(`/users/${id}/permissions`, { permissionKeys, resetToRoleId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["staff"] });
+      queryClient.invalidateQueries({ queryKey: ["roles"] });
+    },
   });
 }
 
