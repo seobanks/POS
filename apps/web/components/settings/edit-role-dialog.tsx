@@ -54,7 +54,10 @@ export function EditRoleDialog({
 
   return (
     <Dialog open onOpenChange={(next) => !next && onClose()}>
-      <DialogContent className="max-w-6xl w-[96vw] h-[92vh] max-h-[92vh] p-0 flex flex-col gap-0 overflow-hidden bg-background border shadow-2xl rounded-xl">
+      <DialogContent
+        showCloseButton={false}
+        className="w-[96vw] max-w-[96vw] sm:max-w-[96vw] md:max-w-6xl lg:max-w-7xl h-[92vh] max-h-[92vh] sm:max-h-[92vh] p-0 flex flex-col gap-0 overflow-hidden bg-background border shadow-2xl rounded-xl"
+      >
         <form onSubmit={onSubmit} className="flex flex-col h-full overflow-hidden">
           {/* Petpooja Top Navigation Header */}
           <div className="flex items-center justify-between border-b border-border bg-card px-6 py-3.5 shrink-0">
@@ -101,6 +104,14 @@ export function EditRoleDialog({
                 <Save className="h-3.5 w-3.5 mr-1.5" />
                 {updateRole.isPending ? "Saving changes…" : "Save Changes"}
               </Button>
+              <button
+                type="button"
+                onClick={onClose}
+                className="p-1.5 ml-1 text-muted-foreground hover:text-foreground rounded-md hover:bg-muted transition-colors cursor-pointer"
+                aria-label="Close"
+              >
+                <X className="h-4 w-4" />
+              </button>
             </div>
           </div>
 
