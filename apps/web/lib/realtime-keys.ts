@@ -12,6 +12,8 @@ export function realtimeInvalidations(event: string, branchId: string): string[]
     case "table.updated":
     case "table.layout.updated":
       return [["floors", branchId], ["orders"]];
+    case "table.request":
+      return [["table-requests", branchId], ["floors", branchId]];
     case "order.created":
     case "order.updated":
     case "order.deleted":
@@ -32,6 +34,7 @@ export const REALTIME_EVENTS = [
   "kot.reprinted",
   "table.updated",
   "table.layout.updated",
+  "table.request",
   "order.created",
   "order.updated",
   "order.deleted",

@@ -1,30 +1,13 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { BellRing, Receipt } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { api } from "@/lib/api";
-
-interface TableRequestRow {
-  id: string;
-  type: "WAITER" | "BILL";
-  createdAt: string;
-  table: { id: string; number: string; name: string | null };
-}
+import { useResolveTableRequest, useTableRequests } from "@/hooks/use-tables";
 
 /** Guest "call waiter" / "request bill" taps from the table QR page. */
 export function TableRequestsBar({ branchId }: { branchId: string | null }) {
-  const queryClient = useQueryClient();
-  const { data } = useQuery({
-    queryKey: ["table-requests", branchId],
-    queryFn: () => api.get<TableRequestRow[]>(`/tables/requests?branchId=${branchId}`),
-    enabled: !!branchId,
-    refetchInterval: 10_000,
-  });
-  const resolve = useMutation({
-    mutationFn: (id: string) => api.patch(`/tables/requests/${id}/resolve?branchId=${branchId}`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["table-requests"] }),
-  });
+  const { data } = useTableRequests(branchId);
+  const resolve = useResolveTableRequest(branchId);
 
   if (!data || data.length === 0) return null;
   return (

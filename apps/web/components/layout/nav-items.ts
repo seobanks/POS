@@ -14,6 +14,7 @@ import {
   Package,
   Settings,
   ShoppingCart,
+  Smartphone,
   UsersRound,
   UtensilsCrossed,
   type LucideIcon,
@@ -31,6 +32,7 @@ export const NAV_ITEMS: NavItem[] = [
   { labelKey: "nav.pos", href: "/pos", icon: ShoppingCart, permission: "orders.create" },
   { labelKey: "nav.orders", href: "/orders", icon: ClipboardList, permission: "orders.create" },
   { labelKey: "nav.tables", href: "/tables", icon: LayoutGrid, permission: "tables.view" },
+  { labelKey: "nav.captain", href: "/captain", icon: Smartphone, permission: "tables.view" },
   {
     labelKey: "nav.reservations",
     href: "/reservations",

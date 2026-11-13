@@ -119,6 +119,11 @@ export interface OpenOrder {
   totalAmount: string;
   status: string;
   customer: Customer | null;
+  guestCount?: number | null;
+  guestName?: string | null;
+  createdAt?: string;
+  billedAt?: string | null;
+  items?: { id: string; nameSnapshot?: string; quantity?: number; [key: string]: unknown }[];
 }
 
 export type OrderChannel = "STAFF" | "ONLINE";

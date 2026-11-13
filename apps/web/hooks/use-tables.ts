@@ -119,3 +119,31 @@ export function useRotateQrToken(branchId: string | null) {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["floors", branchId] }),
   });
 }
+
+export interface TableRequestRow {
+  id: string;
+  type: "WAITER" | "BILL";
+  createdAt: string;
+  table: { id: string; number: string; name: string | null };
+}
+
+export function useTableRequests(branchId: string | null) {
+  return useQuery({
+    queryKey: ["table-requests", branchId],
+    queryFn: () => api.get<TableRequestRow[]>(`/tables/requests?branchId=${branchId}`),
+    enabled: !!branchId,
+    refetchInterval: 8_000,
+  });
+}
+
+export function useResolveTableRequest(branchId: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.patch(`/tables/requests/${id}/resolve?branchId=${branchId}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["table-requests", branchId] });
+      queryClient.invalidateQueries({ queryKey: ["floors", branchId] });
+    },
+  });
+}
+
