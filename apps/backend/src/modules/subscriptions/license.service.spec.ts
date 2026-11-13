@@ -126,8 +126,8 @@ describe('LicenseService', () => {
       const [payloadPart, sig] = validKey.split('.');
 
       // Alter the signature
-      const tamperedSig =
-        sig.slice(0, -2) + (sig.endsWith('0') ? '1' : '0') + sig.slice(-1);
+      const lastChar = sig.slice(-1);
+      const tamperedSig = sig.slice(0, -1) + (lastChar === 'a' ? 'b' : 'a');
       const tamperedKey = `${payloadPart}.${tamperedSig}`;
 
       const result = service.verifyLicense(tamperedKey);

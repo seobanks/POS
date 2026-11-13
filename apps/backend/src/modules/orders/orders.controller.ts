@@ -212,6 +212,27 @@ export class OrdersController {
   }
 
   @Auth('orders.create')
+  @Get('kots')
+  async listKots(
+    @CurrentUser() user: SessionUser,
+    @Query('branchId') branchId: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('orderType') orderType?: string,
+    @Query('status') status?: string,
+    @Query('search') search?: string,
+  ) {
+    await this.branchAccess.assertAccess(user.restaurantId, branchId);
+    return this.ordersService.listKots(branchId, {
+      startDate,
+      endDate,
+      orderType,
+      status,
+      search,
+    });
+  }
+
+  @Auth('orders.create')
   @Get(':id')
   async getOrder(
     @CurrentUser() user: SessionUser,

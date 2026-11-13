@@ -110,6 +110,7 @@ export interface OpenOrder {
   orderNumber: string;
   type: string;
   tableId: string | null;
+  table?: { id: string; name: string | null; number: number | string } | null;
   subtotal: string;
   taxAmount: string;
   discountAmount: string;
@@ -119,11 +120,23 @@ export interface OpenOrder {
   totalAmount: string;
   status: string;
   customer: Customer | null;
+  createdBy?: { id: string; name: string; roleName?: string } | null;
   guestCount?: number | null;
   guestName?: string | null;
-  createdAt?: string;
+  createdAt: string;
   billedAt?: string | null;
-  items?: { id: string; nameSnapshot?: string; quantity?: number; [key: string]: unknown }[];
+  kots?: { id: string; ticketNumber: string; status: string; printedCount: number; createdAt: string }[];
+  items: {
+    id: string;
+    menuItemId?: string;
+    nameSnapshot: string;
+    quantity: number;
+    unitPriceSnapshot?: string;
+    lineTotal?: string;
+    kitchenNote?: string | null;
+    status?: string;
+    modifiers?: { id?: string; nameSnapshot: string; priceAdjSnapshot?: string }[];
+  }[];
 }
 
 export type OrderChannel = "STAFF" | "ONLINE";
@@ -151,6 +164,7 @@ export interface OrderDetail {
   billedAt: string | null;
   table: { id: string; name: string | null; number: string } | null;
   customer: Customer | null;
+  createdBy?: { id: string; name: string; roleName?: string } | null;
   items: {
     id: string;
     menuItemId: string;
@@ -200,11 +214,65 @@ export interface ManagedOrder {
   channel: OrderChannel;
   acceptance: AcceptanceStatus;
   guestName: string | null;
+  subtotal?: string;
+  taxAmount?: string;
+  discountAmount?: string;
   totalAmount: string;
   createdAt: string;
   table: { id: string; name: string | null; number: number } | null;
   customer: Customer | null;
-  items: { id: string; nameSnapshot: string; quantity: number }[];
+  createdBy?: { id: string; name: string; roleName?: string } | null;
+  payments?: { method: string; amount: string }[];
+  kots?: { id: string; ticketNumber: string; status: string; printedCount: number }[];
+  items: { id: string; nameSnapshot: string; quantity: number; lineTotal?: string }[];
+}
+
+export interface KotAuditItem {
+  id: string;
+  ticketNumber: string;
+  orderId: string;
+  orderNumber: string;
+  orderType: string;
+  tableName: string | null;
+  customerName: string | null;
+  customerPhone: string | null;
+  stationName: string | null;
+  itemCount: number;
+  itemsSummary: string;
+  status: "NEW" | "IN_PROGRESS" | "READY" | "SERVED" | "CANCELLED";
+  isModified: boolean;
+  printedCount: number;
+  printedAt: string | null;
+  billPrintDate: string | null;
+  completeDuration: number;
+  createdAt: string;
+  createdBy: string | null;
+}
+
+export function useKots(
+  branchId: string | null,
+  filters: {
+    startDate?: string;
+    endDate?: string;
+    orderType?: string;
+    status?: string;
+    search?: string;
+  } = {},
+) {
+  return useQuery({
+    queryKey: ["kots", "audit", branchId, filters],
+    queryFn: () => {
+      const q = new URLSearchParams({ branchId: branchId ?? "" });
+      if (filters.startDate) q.set("startDate", filters.startDate);
+      if (filters.endDate) q.set("endDate", filters.endDate);
+      if (filters.orderType) q.set("orderType", filters.orderType);
+      if (filters.status) q.set("status", filters.status);
+      if (filters.search) q.set("search", filters.search);
+      return api.get<KotAuditItem[]>(`/orders/kots?${q.toString()}`);
+    },
+    enabled: !!branchId,
+    refetchInterval: 10_000,
+  });
 }
 
 export type OrderTab = "pending" | "active" | "history";

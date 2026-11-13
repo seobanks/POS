@@ -76,7 +76,23 @@ export class OrdersService {
   async listOpen(branchId: string, tableId?: string) {
     return this.prisma.order.findMany({
       where: { branchId, status: 'OPEN', ...(tableId ? { tableId } : {}) },
-      include: { table: true, items: true, customer: true },
+      include: {
+        table: true,
+        items: true,
+        customer: true,
+        createdBy: {
+          select: { id: true, name: true, role: { select: { name: true } } },
+        },
+        kots: {
+          select: {
+            id: true,
+            ticketNumber: true,
+            status: true,
+            printedCount: true,
+            createdAt: true,
+          },
+        },
+      },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -895,9 +911,150 @@ export class OrdersService {
         ...(filters.channel ? { channel: filters.channel } : {}),
         ...(filters.type ? { type: filters.type as never } : {}),
       },
-      include: { table: true, customer: true, items: true },
+      include: {
+        table: true,
+        customer: true,
+        items: true,
+        createdBy: {
+          select: { id: true, name: true, role: { select: { name: true } } },
+        },
+        payments: true,
+        kots: {
+          select: {
+            id: true,
+            ticketNumber: true,
+            status: true,
+            printedCount: true,
+            createdAt: true,
+          },
+        },
+      },
       orderBy: { createdAt: 'desc' },
       take: 200,
+    });
+  }
+
+  async listKots(
+    branchId: string,
+    filters: {
+      startDate?: string;
+      endDate?: string;
+      orderType?: string;
+      status?: string;
+      search?: string;
+    },
+  ) {
+    const where: Prisma.KotWhereInput = {
+      order: {
+        branchId,
+        ...(filters.orderType ? { type: filters.orderType as never } : {}),
+      },
+      ...(filters.status ? { status: filters.status as never } : {}),
+    };
+
+    if (filters.startDate || filters.endDate) {
+      where.createdAt = {};
+      if (filters.startDate) {
+        where.createdAt.gte = new Date(filters.startDate);
+      }
+      if (filters.endDate) {
+        where.createdAt.lte = new Date(filters.endDate);
+      }
+    }
+
+    if (filters.search) {
+      const s = filters.search.trim();
+      where.OR = [
+        { ticketNumber: { contains: s, mode: 'insensitive' } },
+        { order: { orderNumber: { contains: s, mode: 'insensitive' } } },
+        { order: { table: { name: { contains: s, mode: 'insensitive' } } } },
+        { order: { table: { number: { contains: s, mode: 'insensitive' } } } },
+      ];
+    }
+
+    const kots = await this.prisma.kot.findMany({
+      where,
+      include: {
+        station: true,
+        order: {
+          select: {
+            id: true,
+            orderNumber: true,
+            type: true,
+            table: true,
+            guestName: true,
+            notes: true,
+            billedAt: true,
+            customer: { select: { name: true, phone: true } },
+            createdBy: { select: { id: true, name: true } },
+          },
+        },
+        items: {
+          include: {
+            orderItem: {
+              select: {
+                id: true,
+                nameSnapshot: true,
+                quantity: true,
+                kitchenNote: true,
+                modifiers: { select: { nameSnapshot: true } },
+              },
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+    });
+
+    return kots.map((k) => {
+      const itemsSummary = k.items
+        .map(
+          (i) =>
+            `${i.orderItem.quantity}x ${i.orderItem.nameSnapshot}${
+              i.orderItem.modifiers?.length
+                ? ` (${i.orderItem.modifiers.map((m) => m.nameSnapshot).join(', ')})`
+                : ''
+            }`,
+        )
+        .join(', ');
+
+      const totalItems = k.items.reduce(
+        (sum, i) => sum + i.orderItem.quantity,
+        0,
+      );
+
+      const end =
+        k.readyAt ||
+        (k.status === 'READY' || k.status === 'SERVED' ? k.servedAt : null);
+      const diffMs = end
+        ? new Date(end).getTime() - new Date(k.createdAt).getTime()
+        : Date.now() - new Date(k.createdAt).getTime();
+      const completeDuration = Math.max(1, Math.floor(diffMs / 60000));
+
+      return {
+        id: k.id,
+        ticketNumber: k.ticketNumber,
+        orderId: k.order.id,
+        orderNumber: k.order.orderNumber,
+        orderType: k.order.type,
+        tableName:
+          k.order.table?.name ||
+          (k.order.table ? `Table ${k.order.table.number}` : null),
+        customerName: k.order.customer?.name || k.order.guestName || null,
+        customerPhone: k.order.customer?.phone || null,
+        stationName: k.station?.name || null,
+        itemCount: totalItems,
+        itemsSummary,
+        status: k.status,
+        isModified: k.printedCount > 1,
+        printedCount: k.printedCount,
+        printedAt: k.printedAt?.toISOString() || null,
+        billPrintDate: k.order.billedAt?.toISOString() || null,
+        completeDuration,
+        createdAt: k.createdAt.toISOString(),
+        createdBy: k.order.createdBy?.name || null,
+      };
     });
   }
 
