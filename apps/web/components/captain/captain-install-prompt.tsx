@@ -96,19 +96,23 @@ export function CaptainInstallPrompt() {
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleDismiss()}>
       <DialogContent className="max-w-md w-[92vw] sm:w-full rounded-2xl border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-6 text-zinc-900 dark:text-zinc-100 shadow-2xl">
         <DialogHeader className="items-center text-center space-y-3">
-          <div className="relative flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-primary border border-primary/20 shadow-inner">
-            <MonitorSmartphone className="h-8 w-8 stroke-[1.75]" />
-            <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground font-bold">
+          <div className="relative flex h-20 w-20 items-center justify-center rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800 shadow-md bg-white">
+            <img
+              src="/captain-apple-icon.png"
+              alt="SERVIO Captain"
+              className="h-full w-full object-cover"
+            />
+            <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] text-primary-foreground font-bold shadow-xs">
               ✓
             </span>
           </div>
 
           <div className="space-y-1">
             <DialogTitle className="text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
-              Install Hanva Captain
+              Install SERVIO Captain
             </DialogTitle>
             <DialogDescription className="text-xs text-zinc-600 dark:text-zinc-400 max-w-xs mx-auto leading-relaxed">
-              Install Captain on this device for instant full-screen tableside ordering, lightning-fast KOT punch, and offline reliability.
+              Smart Restaurant Service by Hanva POS. Install on this tablet or phone for instant full-screen tableside ordering, lightning-fast KOT punch, and offline reliability.
             </DialogDescription>
           </div>
         </DialogHeader>

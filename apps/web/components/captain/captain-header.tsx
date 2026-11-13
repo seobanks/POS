@@ -115,13 +115,23 @@ export function CaptainHeader({
       <div className="flex h-14 items-center justify-between px-3.5 sm:px-4">
         {/* Left: Brand / Restaurant & Branch */}
         <div className="flex items-center gap-2.5 min-w-0">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/80 to-primary text-primary-foreground shadow-sm">
-            <Utensils className="h-4 w-4" />
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl overflow-hidden border border-border shadow-2xs bg-white">
+            <img
+              src="/icons/captain-96.png"
+              alt="SERVIO"
+              className="h-full w-full object-cover"
+            />
           </div>
           <div className="flex flex-col min-w-0">
-            <h1 className="truncate text-xs font-semibold text-zinc-900 dark:text-zinc-100 sm:text-sm tracking-tight">
-              {restaurantName}
-            </h1>
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-orange-600 dark:text-orange-400 shrink-0">
+                SERVIO
+              </span>
+              <span className="text-zinc-300 dark:text-zinc-700">·</span>
+              <h1 className="truncate text-xs font-semibold text-zinc-900 dark:text-zinc-100 sm:text-sm tracking-tight">
+                {restaurantName}
+              </h1>
+            </div>
             <div className="flex items-center gap-1.5 text-[11px] text-zinc-500 dark:text-zinc-400">
               <span className="truncate max-w-[120px] sm:max-w-[180px]">{branchName}</span>
               <span className="text-zinc-400 dark:text-zinc-600">·</span>

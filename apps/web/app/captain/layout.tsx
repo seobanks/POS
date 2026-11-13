@@ -35,8 +35,14 @@ export default function CaptainLayout({
     return (
       <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-background text-muted-foreground">
         <div className="flex flex-col items-center gap-3">
-          <div className="h-9 w-9 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-          <p className="text-xs font-medium tracking-wide">Connecting to Hanva Captain…</p>
+          <div className="h-16 w-16 overflow-hidden rounded-2xl border border-border shadow-md bg-white">
+            <img
+              src="/icons/captain-192.png"
+              alt="SERVIO Captain"
+              className="h-full w-full object-cover animate-pulse"
+            />
+          </div>
+          <p className="text-xs font-semibold tracking-wide text-foreground">Connecting to SERVIO Captain…</p>
         </div>
       </div>
     );
@@ -50,10 +56,13 @@ export default function CaptainLayout({
     <>
       <head>
         <link rel="manifest" href="/captain/manifest.webmanifest" />
-        <meta name="theme-color" content="#09090b" />
+        <link rel="apple-touch-icon" href="/captain-apple-icon.png" />
+        <link rel="icon" type="image/png" sizes="192x192" href="/icons/captain-192.png" />
+        <link rel="icon" type="image/png" sizes="96x96" href="/icons/captain-96.png" />
+        <meta name="theme-color" content="#ea580c" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-        <meta name="apple-mobile-web-app-title" content="Captain" />
+        <meta name="apple-mobile-web-app-title" content="SERVIO Captain" />
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
       <BranchProvider>
