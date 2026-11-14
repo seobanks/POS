@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
-import { AlertCircle, Loader2 } from "lucide-react";
+import { AlertCircle, Loader2, WifiOff } from "lucide-react";
 import { Logo } from "@/components/layout/logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,6 +35,19 @@ export default function LoginPage() {
   const [needsCode, setNeedsCode] = useState(false);
   // Shown inline under the form (a toast vanishes before it can be read).
   const [error, setError] = useState<string | null>(null);
+  const [isOnline, setIsOnline] = useState<boolean>(true);
+
+  useEffect(() => {
+    setIsOnline(typeof navigator !== "undefined" ? navigator.onLine : true);
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
   const prefersReducedMotion = useReducedMotion();
   const {
     register,
@@ -95,6 +108,32 @@ export default function LoginPage() {
           </h1>
           <p className="text-sm text-muted-foreground">Sign in to manage your restaurant</p>
         </div>
+
+        {!isOnline && (
+          <div className="mb-6 flex flex-col gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3.5 text-xs text-amber-200">
+            <div className="flex items-center gap-2 font-medium text-amber-300">
+              <WifiOff className="h-4 w-4 shrink-0" />
+              <span>Offline Mode Active &middot; Cloud unreachable</span>
+            </div>
+            <p className="text-[11px] text-amber-200/80">
+              Your device is currently disconnected. If already signed in, you can jump directly into offline apps:
+            </p>
+            <div className="flex items-center gap-2 pt-1 font-medium">
+              <Link
+                href="/pos"
+                className="rounded-md bg-amber-500/20 px-2 py-1 text-amber-300 hover:bg-amber-500/30 transition-colors"
+              >
+                POS (Biller) &rarr;
+              </Link>
+              <Link
+                href="/captain"
+                className="rounded-md bg-blue-500/20 px-2 py-1 text-blue-300 hover:bg-blue-500/30 transition-colors"
+              >
+                Captain App &rarr;
+              </Link>
+            </div>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="flex flex-col gap-5">
           <div className="flex flex-col gap-2">
