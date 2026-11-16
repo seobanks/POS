@@ -1086,6 +1086,12 @@ model MenuItem {
   // Price of a half portion; null = item has no portion picker. `price` is the full portion.
   halfPrice Decimal? @db.Decimal(12, 2)
 
+  shortCode         String?  // Short display code e.g. "gt30" shown on POS
+  onlineDisplayName String?  // Different name shown on online platforms
+  isHighlighted     Boolean  @default(false) // Featured/highlighted item
+  qrOrderingEnabled Boolean  @default(true)  // Show on QR menu / kiosk
+  restrictChargesAndTax Boolean @default(false) // Restrict additional charges & tax
+
   sortOrder Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

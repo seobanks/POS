@@ -21,6 +21,7 @@ import {
   Trash2,
   Upload,
   Utensils,
+  X,
   Zap,
 } from "lucide-react";
 import Image from "next/image";
@@ -68,6 +69,16 @@ import {
 } from "@/hooks/use-menu";
 import { exportMenuToCsv } from "@/lib/csv-parser";
 import { cn } from "@/lib/utils";
+
+function timeAgo(iso: string) {
+  const diff = Date.now() - new Date(iso).getTime();
+  const days = Math.floor(diff / 86400000);
+  if (days === 0) return "today";
+  if (days === 1) return "yesterday";
+  if (days < 30) return `${days} days ago`;
+  const months = Math.floor(days / 30);
+  return `about ${months} month${months > 1 ? "s" : ""} ago`;
+}
 
 interface MenuItemsTableProps {
   items: MenuItem[];
@@ -261,6 +272,21 @@ export function MenuItemsTable({
     );
   };
 
+  // Bulk Set a single field (generic)
+  const handleBulkSet = (field: string, value: unknown) => {
+    if (selectedIds.length === 0) {
+      toast.info("Select at least one item first");
+      return;
+    }
+    bulkUpdate.mutate(
+      { itemIds: selectedIds, updates: { [field]: value } },
+      {
+        onSuccess: (res) => toast.success(`Updated ${res.updatedCount} items`),
+        onError: () => toast.error("Bulk update failed"),
+      },
+    );
+  };
+
   // Bulk Delete
   const handleBulkDelete = () => {
     if (selectedIds.length === 0) return;
@@ -430,26 +456,16 @@ export function MenuItemsTable({
                     <DropdownMenuPortal>
                       <DropdownMenuSubContent className="w-44">
                         <DropdownMenuItem
-                          onClick={() =>
-                            bulkUpdate.mutate({
-                              itemIds: selectedIds,
-                              updates: { description: "Chef Special" },
-                            })
-                          }
+                          onClick={() => handleBulkSet("isHighlighted", true)}
                           className="text-xs"
                         >
-                          Chef's Special
+                          <Flame className="mr-2 h-3.5 w-3.5 text-amber-500" /> Mark as Featured
                         </DropdownMenuItem>
                         <DropdownMenuItem
-                          onClick={() =>
-                            bulkUpdate.mutate({
-                              itemIds: selectedIds,
-                              updates: { description: "Bestseller" },
-                            })
-                          }
+                          onClick={() => handleBulkSet("isHighlighted", false)}
                           className="text-xs"
                         >
-                          Bestseller
+                          Remove Featured Tag
                         </DropdownMenuItem>
                       </DropdownMenuSubContent>
                     </DropdownMenuPortal>
@@ -464,42 +480,56 @@ export function MenuItemsTable({
                     <DropdownMenuPortal>
                       <DropdownMenuSubContent className="w-48">
                         <DropdownMenuItem
-                          onClick={() => handleBulkDietary({ isVeg: true, isVegan: false })}
+                          onClick={() => handleBulkSet("isVeg", true)}
                           className="text-xs gap-2"
                         >
-                          <span className="h-2 w-2 rounded-full bg-emerald-600" /> Pure Veg
+                          <span className="mr-2 h-3 w-3 rounded-sm border-2 border-green-600 flex items-center justify-center"><span className="h-1.5 w-1.5 rounded-full bg-green-600" /></span> Mark as Veg
                         </DropdownMenuItem>
                         <DropdownMenuItem
-                          onClick={() => handleBulkDietary({ isVeg: false })}
+                          onClick={() => handleBulkSet("isVeg", false)}
                           className="text-xs gap-2"
                         >
-                          <span className="h-2 w-2 rounded-full bg-rose-600" /> Non-Veg
+                          <span className="mr-2 h-3 w-3 rounded-sm border-2 border-red-600 flex items-center justify-center"><span className="h-1.5 w-1.5 rounded-full bg-red-600" /></span> Mark as Non-Veg
                         </DropdownMenuItem>
                         <DropdownMenuItem
-                          onClick={() => handleBulkDietary({ isVeg: true, isVegan: true })}
+                          onClick={() => handleBulkSet("isVegan", true)}
                           className="text-xs gap-2"
                         >
-                          <Leaf className="h-3 w-3 text-emerald-600" /> Vegan
+                          <Leaf className="h-3 w-3 text-emerald-600 mr-2" /> Mark as Vegan
                         </DropdownMenuItem>
                         <DropdownMenuItem
-                          onClick={() => handleBulkDietary({ isVeg: true, isJain: true })}
+                          onClick={() => handleBulkSet("isHalal", true)}
                           className="text-xs gap-2"
                         >
-                          <span className="h-2 w-2 rounded-full bg-amber-500" /> Jain Friendly
+                          Mark as Halal
                         </DropdownMenuItem>
                       </DropdownMenuSubContent>
                     </DropdownMenuPortal>
                   </DropdownMenuSub>
 
-                  {/* QR Ordering */}
-                  <DropdownMenuItem
-                    onClick={() => {
-                      toast.success(`Updated QR Ordering flags for ${selectedIds.length} items`);
-                    }}
-                    className="gap-2 text-xs"
-                  >
-                    <Globe className="h-3.5 w-3.5 text-indigo-600" /> QR Ordering
-                  </DropdownMenuItem>
+                  {/* QR Ordering Submenu */}
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger className="gap-2 text-xs">
+                      <Globe className="h-3.5 w-3.5 text-indigo-600" />
+                      <span>QR Ordering</span>
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuPortal>
+                      <DropdownMenuSubContent className="w-48">
+                        <DropdownMenuItem
+                          onClick={() => handleBulkSet("qrOrderingEnabled", true)}
+                          className="text-xs font-medium text-emerald-600"
+                        >
+                          <Check className="mr-2 h-3.5 w-3.5 text-emerald-500" /> Enable QR Ordering
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => handleBulkSet("qrOrderingEnabled", false)}
+                          className="text-xs font-medium text-rose-600"
+                        >
+                          <X className="mr-2 h-3.5 w-3.5 text-red-500" /> Disable QR Ordering
+                        </DropdownMenuItem>
+                      </DropdownMenuSubContent>
+                    </DropdownMenuPortal>
+                  </DropdownMenuSub>
 
                   <DropdownMenuSeparator />
 
@@ -729,20 +759,22 @@ export function MenuItemsTable({
 
                     {/* Online Display Name */}
                     <TableCell className="text-xs text-muted-foreground">
-                      {item.description ? (
+                      {item.onlineDisplayName ? (
                         <span className="truncate max-w-[120px] block font-medium text-foreground/80">
-                          {item.description}
+                          {item.onlineDisplayName}
                         </span>
                       ) : (
-                        "—"
+                        <span className="text-muted-foreground/40">—</span>
                       )}
                     </TableCell>
 
                     {/* Short Code */}
-                    <TableCell>
-                      <span className="font-mono text-xs italic text-muted-foreground">
-                        {item.sku || item.barcode || item.name.toLowerCase().replace(/\s+/g, "")}
-                      </span>
+                    <TableCell className="text-xs text-muted-foreground font-mono">
+                      {item.shortCode ? (
+                        <span className="italic">{item.shortCode}</span>
+                      ) : (
+                        <span className="text-muted-foreground/40">—</span>
+                      )}
                     </TableCell>
 
                     {/* Status Toggle Switch */}
@@ -762,7 +794,7 @@ export function MenuItemsTable({
 
                     {/* Last Update */}
                     <TableCell className="text-right text-[11px] text-muted-foreground whitespace-nowrap">
-                      11 days ago
+                      {item.updatedAt ? timeAgo(item.updatedAt) : "—"}
                     </TableCell>
                   </TableRow>
                 );

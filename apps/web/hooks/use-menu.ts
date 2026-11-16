@@ -51,6 +51,12 @@ export interface MenuItem {
   isVeg: boolean;
   isActive: boolean;
   isCombo: boolean;
+  shortCode?: string | null;
+  onlineDisplayName?: string | null;
+  isHighlighted: boolean;
+  qrOrderingEnabled: boolean;
+  restrictChargesAndTax: boolean;
+  updatedAt?: string;
   category: { id: string; name: string };
   station: { id: string; name: string } | null;
   modifierGroups: { modifierGroup: ModifierGroup }[];

@@ -236,6 +236,10 @@ export class MenuService {
       isVegan?: boolean;
       isJain?: boolean;
       isGlutenFree?: boolean;
+      isHalal?: boolean;
+      isHighlighted?: boolean;
+      qrOrderingEnabled?: boolean;
+      restrictChargesAndTax?: boolean;
       spiceLevel?: any;
       taxRatePercent?: number | string;
       prepTimeMinutes?: number;
