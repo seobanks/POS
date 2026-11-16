@@ -105,7 +105,10 @@ export function usePerformance(branchId: string | null, from: string, to: string
 
 export function useHrActions(branchId: string | null) {
   const qc = useQueryClient();
-  const done = () => qc.invalidateQueries({ queryKey: ["hr"] });
+  const done = () => {
+    qc.invalidateQueries({ queryKey: ["hr"] });
+    qc.invalidateQueries({ queryKey: ["dashboard", "summary"] });
+  };
   return {
     addShift: useMutation({
       mutationFn: (dto: { userId: string; startsAt: string; endsAt: string; note?: string }) =>

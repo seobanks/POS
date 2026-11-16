@@ -8,6 +8,8 @@ export class DashboardService {
   async getSummary(branchId: string) {
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(startOfDay);
+    endOfDay.setHours(23, 59, 59, 999);
 
     const [
       revenueAgg,
@@ -16,6 +18,8 @@ export class DashboardService {
       tableCounts,
       kitchenQueue,
       recentOrders,
+      shiftsToday,
+      paidOrdersToday,
     ] = await Promise.all([
       this.prisma.order.aggregate({
         where: { branchId, status: 'PAID', billedAt: { gte: startOfDay } },
@@ -54,6 +58,44 @@ export class DashboardService {
           billedAt: true,
         },
       }),
+      this.prisma.shift.findMany({
+        where: {
+          branchId,
+          startsAt: { lte: endOfDay },
+          endsAt: { gte: startOfDay },
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              role: { select: { name: true, label: true } },
+            },
+          },
+        },
+        orderBy: { startsAt: 'asc' },
+      }),
+      this.prisma.order.findMany({
+        where: {
+          branchId,
+          status: 'PAID',
+          billedAt: { gte: startOfDay, lte: endOfDay },
+        },
+        select: {
+          id: true,
+          orderNumber: true,
+          totalAmount: true,
+          billedAt: true,
+          createdAt: true,
+          createdById: true,
+          payments: {
+            select: {
+              method: true,
+              amount: true,
+            },
+          },
+        },
+      }),
     ]);
 
     const tableStatusMap = Object.fromEntries(
@@ -76,8 +118,131 @@ export class DashboardService {
       { online: 0, offline: 0 },
     );
 
+    const todayRevenue = Number(revenueAgg._sum.totalAmount ?? 0);
+    const now = new Date();
+
+    // Map each paid order to its matching shift(s)
+    const shiftSummaries = shiftsToday.map((shift, index) => {
+      const shiftStart = new Date(shift.startsAt);
+      const shiftEnd = new Date(shift.endsAt);
+
+      let status: 'ACTIVE' | 'COMPLETED' | 'UPCOMING' = 'UPCOMING';
+      if (now >= shiftStart && now <= shiftEnd) {
+        status = 'ACTIVE';
+      } else if (now > shiftEnd) {
+        status = 'COMPLETED';
+      } else {
+        status = 'UPCOMING';
+      }
+
+      const formatTime = (d: Date) =>
+        d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+      const formattedTime = `${formatTime(shiftStart)} – ${formatTime(shiftEnd)}`;
+
+      return {
+        id: shift.id,
+        name: shift.note?.trim() || `Shift #${index + 1}`,
+        userId: shift.userId,
+        userName: shift.user?.name ?? 'Staff',
+        userRole: shift.user?.role?.label ?? shift.user?.role?.name ?? null,
+        startsAt: shift.startsAt.toISOString(),
+        endsAt: shift.endsAt.toISOString(),
+        formattedTime,
+        status,
+        shiftStart,
+        shiftEnd,
+        totalRevenue: 0,
+        orderCount: 0,
+        paymentBreakdown: { cash: 0, card: 0, upi: 0, other: 0 },
+      };
+    });
+
+    const assignedOrderIds = new Set<string>();
+
+    for (const order of paidOrdersToday) {
+      const orderTime = new Date(order.billedAt ?? order.createdAt);
+
+      const candidates = shiftSummaries.filter(
+        (s) => orderTime >= s.shiftStart && orderTime <= s.shiftEnd,
+      );
+
+      let targetShift = candidates.find((s) => s.userId === order.createdById);
+      if (!targetShift && candidates.length > 0) {
+        targetShift = candidates[0];
+      }
+
+      if (targetShift) {
+        targetShift.totalRevenue += Number(order.totalAmount ?? 0);
+        targetShift.orderCount += 1;
+        assignedOrderIds.add(order.id);
+
+        for (const p of order.payments ?? []) {
+          const amt = Number(p.amount ?? 0);
+          const method = String(p.method || '').toUpperCase();
+          if (method === 'CASH') {
+            targetShift.paymentBreakdown.cash += amt;
+          } else if (method.includes('CARD')) {
+            targetShift.paymentBreakdown.card += amt;
+          } else if (method.includes('UPI')) {
+            targetShift.paymentBreakdown.upi += amt;
+          } else {
+            targetShift.paymentBreakdown.other += amt;
+          }
+        }
+      }
+    }
+
+    let totalShiftRevenue = 0;
+    let totalShiftOrders = 0;
+
+    const finalShifts = shiftSummaries.map((s) => {
+      const roundedRevenue = Math.round(s.totalRevenue * 100) / 100;
+      totalShiftRevenue += roundedRevenue;
+      totalShiftOrders += s.orderCount;
+
+      const aov =
+        s.orderCount > 0
+          ? Math.round((roundedRevenue / s.orderCount) * 100) / 100
+          : 0;
+
+      const pct =
+        todayRevenue > 0
+          ? Math.round((roundedRevenue / todayRevenue) * 1000) / 10
+          : 0;
+
+      return {
+        id: s.id,
+        name: s.name,
+        userId: s.userId,
+        userName: s.userName,
+        userRole: s.userRole,
+        startsAt: s.startsAt,
+        endsAt: s.endsAt,
+        formattedTime: s.formattedTime,
+        status: s.status,
+        totalRevenue: roundedRevenue,
+        orderCount: s.orderCount,
+        averageOrderValue: aov,
+        percentageOfTotal: pct,
+        paymentBreakdown: {
+          cash: Math.round(s.paymentBreakdown.cash * 100) / 100,
+          card: Math.round(s.paymentBreakdown.card * 100) / 100,
+          upi: Math.round(s.paymentBreakdown.upi * 100) / 100,
+          other: Math.round(s.paymentBreakdown.other * 100) / 100,
+        },
+      };
+    });
+
+    const unassignedOrders = paidOrdersToday.filter(
+      (o) => !assignedOrderIds.has(o.id),
+    );
+    const unassignedRevenue = unassignedOrders.reduce(
+      (sum, o) => sum + Number(o.totalAmount ?? 0),
+      0,
+    );
+
     return {
-      todayRevenue: Number(revenueAgg._sum.totalAmount ?? 0),
+      todayRevenue,
       todayOrders: ordersToday,
       channels,
       tables: {
@@ -94,6 +259,14 @@ export class DashboardService {
         ready: kitchenQueueMap.READY ?? 0,
       },
       recentOrders,
+      shiftSales: {
+        totalShiftRevenue: Math.round(totalShiftRevenue * 100) / 100,
+        totalShiftOrders,
+        shiftsCount: finalShifts.length,
+        shifts: finalShifts,
+        unassignedRevenue: Math.round(unassignedRevenue * 100) / 100,
+        unassignedOrders: unassignedOrders.length,
+      },
     };
   }
 

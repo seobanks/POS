@@ -3,6 +3,37 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 
+export interface ShiftBusinessSummary {
+  id: string;
+  name: string;
+  userId: string;
+  userName: string;
+  userRole?: string | null;
+  startsAt: string;
+  endsAt: string;
+  formattedTime: string;
+  status: "ACTIVE" | "COMPLETED" | "UPCOMING";
+  totalRevenue: number;
+  orderCount: number;
+  averageOrderValue: number;
+  percentageOfTotal: number;
+  paymentBreakdown: {
+    cash: number;
+    card: number;
+    upi: number;
+    other: number;
+  };
+}
+
+export interface ShiftsOverview {
+  totalShiftRevenue: number;
+  totalShiftOrders: number;
+  shiftsCount: number;
+  shifts: ShiftBusinessSummary[];
+  unassignedRevenue: number;
+  unassignedOrders: number;
+}
+
 export interface DashboardSummary {
   todayRevenue: number;
   todayOrders: number;
@@ -22,6 +53,7 @@ export interface DashboardSummary {
     totalAmount: string;
     billedAt: string;
   }[];
+  shiftSales: ShiftsOverview;
 }
 
 export function useDashboardSummary(branchId: string | null) {

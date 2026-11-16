@@ -5,6 +5,7 @@ import { ChefHat, ClipboardList, Flame, Globe, ReceiptText, Store, Timer, Trendi
 import Link from "next/link";
 import { useState } from "react";
 import { QuickActions } from "@/components/dashboard/quick-actions";
+import { ShiftSalesCard } from "@/components/dashboard/shift-sales-card";
 import { TrendChart } from "@/components/dashboard/trend-chart";
 import { OrderDetailDialog } from "@/components/orders/order-detail-dialog";
 import { RefundDialog } from "@/components/orders/refund-dialog";
@@ -23,11 +24,13 @@ const ONLINE_ORDER_TYPES = new Set(["QR_ORDER", "KIOSK"]);
 function StatCard({
   label,
   value,
+  subtext,
   icon: Icon,
   accent,
 }: {
   label: string;
   value: string;
+  subtext?: string;
   icon: typeof Wallet;
   accent?: "success" | "warning";
 }) {
@@ -46,9 +49,14 @@ function StatCard({
           <Icon className="h-[18px] w-[18px]" />
         </div>
       </div>
-      <span className="text-3xl font-semibold tabular-nums tracking-tight text-foreground">
-        {value}
-      </span>
+      <div>
+        <span className="text-3xl font-semibold tabular-nums tracking-tight text-foreground">
+          {value}
+        </span>
+        {subtext && (
+          <p className="text-[11px] text-muted-foreground mt-0.5 font-normal">{subtext}</p>
+        )}
+      </div>
     </Card>
   );
 }
@@ -102,6 +110,11 @@ export default function DashboardPage() {
           <StatCard
             label="Today's Revenue"
             value={formatCurrency(data.todayRevenue)}
+            subtext={
+              data.shiftSales?.shiftsCount > 0
+                ? `${data.shiftSales.shiftsCount} shift${data.shiftSales.shiftsCount === 1 ? "" : "s"} tracked`
+                : undefined
+            }
             icon={Wallet}
             accent="success"
           />
@@ -122,6 +135,17 @@ export default function DashboardPage() {
             accent="warning"
           />
         </div>
+      )}
+
+      {/* Shift-wise Total Business Card */}
+      {isLoading || !data ? (
+        <Skeleton className="h-[200px] w-full rounded-2xl" />
+      ) : (
+        <ShiftSalesCard
+          branchId={branchId}
+          shiftsOverview={data.shiftSales}
+          totalTodayRevenue={data.todayRevenue}
+        />
       )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
