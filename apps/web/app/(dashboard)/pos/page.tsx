@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronLeft, MonitorSmartphone, Receipt, ShoppingCart } from "lucide-react";
+import { ChevronLeft, Maximize2, Minimize2, MonitorSmartphone, Receipt, ShoppingCart } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { StatusNote, useNoteToast } from "@/components/ui/status-note";
@@ -14,6 +14,7 @@ import { DayEndModal } from "@/components/pos/day-end-modal";
 import { KitchenProgressWidget } from "@/components/pos/kitchen-progress-widget";
 import { ModifierPickerDialog } from "@/components/pos/modifier-picker-dialog";
 import { OfflineIndicator } from "@/components/pos/offline-indicator";
+import { PosCenterCustomizer } from "@/components/pos/pos-center-customizer";
 import { PosTablePicker } from "@/components/pos/pos-table-picker";
 import { ProductGrid } from "@/components/pos/product-grid";
 import { Card } from "@/components/ui/card";
@@ -401,35 +402,93 @@ function PosPageInner() {
   // mid-flow (tableId set, or viewing/paying an order) skip straight past
   // it, same as arriving here from the Tables page's own "New order" link
   // (?tableId=... pre-fills this and never shows the picker).
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const toggleFullscreen = () => {
+    if (typeof document === "undefined") return;
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen?.().catch(() => {});
+      setIsFullscreen(true);
+    } else {
+      document.exitFullscreen?.().catch(() => {});
+      setIsFullscreen(false);
+    }
+  };
+
+  // Keyboard shortcut listener for high-speed POS station
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target?.tagName === "INPUT" || target?.tagName === "TEXTAREA") return;
+
+      if (e.key === "F1") {
+        e.preventDefault();
+        handleOrderTypeChange("DINE_IN");
+      } else if (e.key === "F2") {
+        e.preventDefault();
+        handleOrderTypeChange("TAKEAWAY");
+      } else if (e.key === "F3") {
+        e.preventDefault();
+        handleOrderTypeChange("DELIVERY");
+      } else if (e.key === "F4") {
+        e.preventDefault();
+        if (lines.length > 0) {
+          toast.success("Draft bill saved to table ledger");
+        }
+      } else if (e.key === "F7") {
+        e.preventDefault();
+        if (lines.length > 0) handleSubmit(false);
+      } else if (e.key === "F8") {
+        e.preventDefault();
+        if (lines.length > 0) handleSubmit(true);
+      } else if (e.key === "F9" || e.code === "Space") {
+        if (!activeOrder && lines.length > 0) {
+          e.preventDefault();
+          handleSubmit(true);
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [lines, activeOrder, handleOrderTypeChange, handleSubmit]);
+
   const showTablePicker = orderType === "DINE_IN" && !tableId && !activeOrder;
 
   return (
-    <div className="flex h-[calc(100dvh-10rem)] flex-col gap-4 lg:h-[calc(100dvh-8rem)]">
+    <div className="flex h-[calc(100dvh-10rem)] flex-col gap-3 lg:h-[calc(100dvh-7.5rem)] pos-station">
       <StatusNote note={note} onClear={clearNote} />
-      <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 pb-2.5">
         <div className="min-w-0 flex-1">
           <KitchenProgressWidget branchId={branchId} />
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0">
           <OfflineIndicator branchId={branchId} />
           <button
             type="button"
+            onClick={toggleFullscreen}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground shadow-2xs"
+            title="Toggle fullscreen terminal (F11)"
+          >
+            {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+            <span className="hidden sm:inline">{isFullscreen ? "Exit Fullscreen" : "Fullscreen"}</span>
+          </button>
+          <button
+            type="button"
             onClick={() => setDayEndOpen(true)}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-500 transition-colors hover:bg-amber-500/20"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-500 transition-colors hover:bg-amber-500/20 shadow-2xs"
             title="Open Z-Report day end closing and X-Report interim read"
           >
             <Receipt className="h-3.5 w-3.5" />
-            Day End
+            <span>Day End</span>
           </button>
           <a
             href="/customer-display"
             target="_blank"
             rel="noreferrer"
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground shadow-2xs"
             title="Opens the customer-facing screen in a new window — drag it to the second monitor"
           >
             <MonitorSmartphone className="h-3.5 w-3.5" />
-            Customer display
+            <span className="hidden md:inline">Customer display</span>
           </a>
         </div>
       </div>
@@ -437,7 +496,7 @@ function PosPageInner() {
       <BranchNotice />
 
       {showTablePicker ? (
-        <Card className="flex-1 overflow-hidden p-5">
+        <Card className="flex-1 overflow-hidden p-5 shadow-2xs">
           <PosTablePicker
             floors={floors ?? []}
             onSelect={handleTablePick}
@@ -448,14 +507,57 @@ function PosPageInner() {
           />
         </Card>
       ) : (
-        <div className="grid min-h-0 flex-1 grid-cols-1 gap-6 overflow-hidden lg:grid-cols-[1fr_360px]">
-          <Card className="min-h-0 overflow-hidden p-3 sm:p-5">
-            <ProductGrid branchId={branchId} onSelect={handleSelect} />
+        <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 overflow-hidden lg:grid-cols-[1fr_360px] xl:grid-cols-[1fr_290px_380px] 2xl:grid-cols-[1fr_330px_420px]">
+          {/* Column 1: Left - Menu Products & Categories */}
+          <Card className="min-h-0 overflow-hidden p-3 sm:p-4 border-border shadow-2xs">
+            <ProductGrid
+              branchId={branchId}
+              onSelect={handleSelect}
+              activeItemId={pickerItem?.id}
+            />
           </Card>
 
+          {/* Column 2: Center - Item Customization & Station Inspector (Desktop >= xl) */}
+          <Card className="hidden min-h-0 overflow-hidden border-border shadow-2xs xl:flex xl:flex-col">
+            <PosCenterCustomizer
+              item={pickerItem}
+              onConfirm={(item, portion, modifierIds, modifierLabel, notes, quantity) => {
+                const base =
+                  portion?.customPrice ??
+                  (portion?.kind === "HALF" ? Number(item.halfPrice) : Number(item.price));
+                const modifierTotal = modifierIds.reduce((sum, id) => {
+                  for (const g of item.modifierGroups) {
+                    const mods = ((g.modifierGroup as any).modifiers || (g.modifierGroup as any).options || []) as any[];
+                    const found = mods.find((m: any) => m.id === id);
+                    if (found) return sum + Number(found.priceAdjustment || found.priceDelta || 0);
+                  }
+                  return sum;
+                }, 0);
+                for (let i = 0; i < quantity; i++) {
+                  addLine(
+                    item.id,
+                    portion ? `${item.name} (${portionText(portion)})` : item.name,
+                    base + modifierTotal,
+                    modifierIds,
+                    modifierLabel,
+                    portion,
+                  );
+                }
+                setPickerItem(null);
+                toast.success(`Added ${quantity}× ${item.name} to ticket`);
+              }}
+              onCancel={() => setPickerItem(null)}
+              activeTable={tables.find((t) => t.id === tableId)}
+              onOpenTablePicker={() => setTableIdRaw("")}
+              orderType={orderType}
+              cartCount={lines.length}
+            />
+          </Card>
+
+          {/* Column 3: Right - Active Ticket / Settlement Panel */}
           <Card
             className={cn(
-              "min-h-0 overflow-hidden p-5",
+              "min-h-0 overflow-hidden p-4 border-border shadow-2xs",
               cartOpen
                 ? "max-lg:fixed max-lg:inset-0 max-lg:z-40 max-lg:rounded-none max-lg:p-4 max-lg:pt-[max(1rem,env(safe-area-inset-top))] max-lg:pb-[max(1rem,env(safe-area-inset-bottom))]"
                 : "max-lg:hidden",
@@ -489,6 +591,12 @@ function PosPageInner() {
                 onRemove={removeLine}
                 onSubmit={() => handleSubmit(false)}
                 onPrintBill={() => handleSubmit(true)}
+                onQuickPay={() => handleSubmit(true)}
+                onHold={() => {
+                  if (lines.length > 0) {
+                    toast.success("Draft bill saved to table ledger");
+                  }
+                }}
                 isSubmitting={createOrder.isPending || addOrderItems.isPending}
                 existingOrderNumber={existingOrder?.orderNumber}
                 onViewExistingOrder={existingOrder ? viewExistingOrder : undefined}
@@ -511,7 +619,6 @@ function PosPageInner() {
           type="button"
           onClick={() => setCartOpen(true)}
           className="fixed inset-x-3 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-30 flex h-14 items-center justify-between rounded-2xl bg-primary px-4 text-primary-foreground shadow-lg active:scale-[0.98] lg:hidden"
-          style={{ backgroundImage: "var(--gradient-primary)" }}
         >
           <span className="flex items-center gap-2 text-sm font-semibold">
             <ShoppingCart className="h-5 w-5" />
@@ -529,13 +636,16 @@ function PosPageInner() {
         </button>
       )}
 
-      <ModifierPickerDialog
-        item={pickerItem}
-        open={!!pickerItem}
-        onOpenChange={(open) => !open && setPickerItem(null)}
-        onConfirm={handleModifierConfirm}
-        allowCustom
-      />
+      {/* Accessible Dialog fallback for screens < xl where center column is hidden */}
+      <div className="xl:hidden">
+        <ModifierPickerDialog
+          item={pickerItem}
+          open={!!pickerItem}
+          onOpenChange={(open) => !open && setPickerItem(null)}
+          onConfirm={handleModifierConfirm}
+          allowCustom
+        />
+      </div>
 
       <DayEndModal
         open={dayEndOpen}

@@ -51,78 +51,77 @@
 }
 
 :root {
-  /* Hanva Fine Dine — light palette. See DESIGN_SYSTEM.md for rationale
-     (wine/burgundy primary is the one deliberate accent choice). */
-  --background: #FBF9F8;
-  --foreground: #111827;
+  /* Hanva Fine Dine — The Grand Atelier (Warm Hospitality & Precision POS) */
+  --background: #F8F9FA;
+  --foreground: #0F172A;
   --card: #FFFFFF;
-  --card-foreground: #111827;
+  --card-foreground: #0F172A;
   --popover: #FFFFFF;
-  --popover-foreground: #111827;
-  --primary: #154E82;
+  --popover-foreground: #0F172A;
+  --primary: #B45309;             /* Warm Amber 700 */
   --primary-foreground: #FFFFFF;
-  --secondary: #F5F1F0;
-  --secondary-foreground: #111827;
-  --muted: #F5F1F0;
-  --muted-foreground: #6B7280;
-  --accent: #F0F6FC;
-  --accent-foreground: #154E82;
-  --destructive: #EF4444;
-  --success: #22C55E;
-  --warning: #F59E0B;
-  --border: #ECE6E4;
-  --input: #E4DCDA;
-  --ring: #154E82;
-  --chart-1: #154E82;
-  --chart-2: #22C55E;
-  --chart-3: #F59E0B;
-  --chart-4: #6366F1;
-  --chart-5: #6B7280;
-  --radius: 1rem;
-  --sidebar: #FFFDFC;
-  --sidebar-foreground: #111827;
-  --sidebar-primary: #154E82;
-  --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #F0F6FC;
-  --sidebar-accent-foreground: #154E82;
-  --sidebar-border: #ECE6E4;
-  --sidebar-ring: #154E82;
+  --secondary: #F1F5F9;
+  --secondary-foreground: #1E293B;
+  --muted: #F1F5F9;
+  --muted-foreground: #64748B;
+  --accent: #FEF3C7;              /* Amber Tint */
+  --accent-foreground: #92400E;
+  --destructive: #DC2626;
+  --success: #16A34A;
+  --warning: #D97706;
+  --border: #E2E8F0;
+  --input: #E2E8F0;
+  --ring: #D97706;
+  --chart-1: #B45309;
+  --chart-2: #16A34A;
+  --chart-3: #D97706;
+  --chart-4: #475569;
+  --chart-5: #94A3B8;
+  --radius: 0.625rem;            /* Modern 10px radius */
+  --sidebar: #0F172A;             /* Obsidian Slate header/sidebar */
+  --sidebar-foreground: #F8FAFC;
+  --sidebar-primary: #F59E0B;
+  --sidebar-primary-foreground: #0F172A;
+  --sidebar-accent: #1E293B;
+  --sidebar-accent-foreground: #F8FAFC;
+  --sidebar-border: #1E293B;
+  --sidebar-ring: #F59E0B;
 }
 
 .dark {
-  --background: #0B0B0D;
-  --foreground: #F4F4F5;
-  --card: #151517;
-  --card-foreground: #F4F4F5;
-  --popover: #151517;
-  --popover-foreground: #F4F4F5;
-  --primary: #3B82F6;
-  --primary-foreground: #FFFFFF;
-  --secondary: #1D1D20;
-  --secondary-foreground: #F4F4F5;
-  --muted: #1D1D20;
-  --muted-foreground: #9CA3AF;
-  --accent: #0E253F;
-  --accent-foreground: #60A5FA;
-  --destructive: #F87171;
-  --success: #34D399;
-  --warning: #FBBF24;
-  --border: #26262A;
-  --input: #26262A;
-  --ring: #3B82F6;
-  --chart-1: #3B82F6;
-  --chart-2: #34D399;
+  --background: #0B0E14;          /* Deep Obsidian Charcoal */
+  --foreground: #F1F5F9;
+  --card: #121721;
+  --card-foreground: #F1F5F9;
+  --popover: #121721;
+  --popover-foreground: #F1F5F9;
+  --primary: #F59E0B;             /* Luminous Brass Amber */
+  --primary-foreground: #0B0E14;
+  --secondary: #1A2130;
+  --secondary-foreground: #F1F5F9;
+  --muted: #1A2130;
+  --muted-foreground: #94A3B8;
+  --accent: #262115;
+  --accent-foreground: #F59E0B;
+  --destructive: #EF4444;
+  --success: #22C55E;
+  --warning: #F59E0B;
+  --border: #1E2638;
+  --input: #1E2638;
+  --ring: #F59E0B;
+  --chart-1: #F59E0B;
+  --chart-2: #22C55E;
   --chart-3: #FBBF24;
-  --chart-4: #818CF8;
-  --chart-5: #9CA3AF;
-  --sidebar: #111113;
-  --sidebar-foreground: #F4F4F5;
-  --sidebar-primary: #3B82F6;
-  --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #0E253F;
-  --sidebar-accent-foreground: #60A5FA;
-  --sidebar-border: #26262A;
-  --sidebar-ring: #3B82F6;
+  --chart-4: #64748B;
+  --chart-5: #94A3B8;
+  --sidebar: #080A0F;
+  --sidebar-foreground: #F1F5F9;
+  --sidebar-primary: #F59E0B;
+  --sidebar-primary-foreground: #080A0F;
+  --sidebar-accent: #151A24;
+  --sidebar-accent-foreground: #F1F5F9;
+  --sidebar-border: #151A24;
+  --sidebar-ring: #F59E0B;
 }
 
 /* Customer kiosk (/kiosk/*): always the light palette, whatever the device's
@@ -309,12 +308,11 @@
   }
   [data-slot="button"][data-variant="default"],
   button[data-slot="button"].bg-primary {
-    background-image: var(--gradient-primary);
-    box-shadow: 0 1px 0 rgb(255 255 255 / 0.18) inset, 0 6px 14px -6px rgb(159 18 57 / 0.55);
+    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
     transition: filter 150ms ease, transform 150ms ease, box-shadow 150ms ease;
   }
   [data-slot="button"][data-variant="default"]:hover:not(:disabled) {
-    filter: brightness(1.06);
+    filter: brightness(1.05);
   }
   [data-slot="button"][data-variant="default"]:active:not(:disabled) {
     transform: translateY(1px);
@@ -322,6 +320,29 @@
   table {
     font-variant-numeric: tabular-nums;
   }
+}
+
+/* High-Throughput POS Station Styles */
+.pos-station {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.pos-tile {
+  cursor: pointer;
+  transition: transform 120ms cubic-bezier(0.2, 0, 0, 1), box-shadow 120ms ease, border-color 120ms ease;
+}
+.pos-tile:active {
+  transform: scale(0.975);
+}
+
+.tabular-numbers {
+  font-variant-numeric: tabular-nums;
+}
+
+.receipt-mono {
+  font-family: var(--font-mono), monospace;
+  font-feature-settings: "tnum" 1;
 }
 
 @media (prefers-reduced-motion: reduce) {

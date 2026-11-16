@@ -113,7 +113,7 @@ export function PosTablePicker({
                 {table.status === "OUT_OF_SERVICE" ? "Out of service" : table.status.toLowerCase()}
               </span>
               {(table.status === "OCCUPIED" || table.status === "RESERVED") && (
-                <ElapsedTimer since={table.statusSince} className="flex items-center gap-1 text-[10px] opacity-70" />
+                <ElapsedTimer since={table.statusSince} status={table.status} className="flex items-center gap-1 text-[10px] opacity-70" />
               )}
             </button>
           );

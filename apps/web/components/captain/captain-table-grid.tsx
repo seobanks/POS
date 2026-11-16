@@ -314,6 +314,7 @@ export function CaptainTableGrid({
                   {(isOccupied || isBillRequested) && elapsedSince && (
                     <ElapsedTimer
                       since={elapsedSince}
+                      status={isOccupied ? "OCCUPIED" : "AVAILABLE"}
                       className="flex items-center gap-1 text-[11px] font-semibold text-zinc-800 dark:text-zinc-300 tabular-nums bg-zinc-200/80 dark:bg-black/30 px-1.5 py-0.5 rounded-md"
                     />
                   )}

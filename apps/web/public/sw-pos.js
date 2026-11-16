@@ -4,7 +4,7 @@
  * Provides offline navigation with high-resilience Offline Emergency Hub
  */
 
-const CACHE_NAME = 'hanva-pos-shell-v4';
+const CACHE_NAME = 'hanva-pos-shell-v5';
 
 // Listen for direct messages from client tabs (e.g. to skip waiting immediately)
 self.addEventListener('message', (event) => {

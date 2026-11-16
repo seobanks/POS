@@ -34,6 +34,7 @@ import { playPaymentReceived } from "@/lib/celebrate";
 import { buildUpiUri } from "@/lib/upi";
 import { QRCodeSVG } from "qrcode.react";
 import { round2 } from "@/lib/pricing-preview";
+import { cn } from "@/lib/utils";
 
 const METHODS: PaymentMethodDto[] = ["CASH", "CARD", "UPI", "OTHER"];
 
@@ -448,13 +449,33 @@ export function CheckoutPanel({
 
       <div className="grid grid-cols-2 gap-4">
         <div className="flex flex-col gap-2">
-          <Label htmlFor="discount">Discount %</Label>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="discount">Discount %</Label>
+            <div className="flex gap-1">
+              {["0", "5", "10", "15", "20"].map((pct) => (
+                <button
+                  key={pct}
+                  type="button"
+                  disabled={locked || !canDiscount}
+                  onClick={() => setDiscountPercent(pct)}
+                  className={cn(
+                    "px-1.5 py-0.5 rounded text-[10px] font-bold border transition-all",
+                    discountPercent === pct
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-muted/40 hover:bg-muted text-muted-foreground border-border",
+                  )}
+                >
+                  {pct}%
+                </button>
+              ))}
+            </div>
+          </div>
           <Input
             id="discount"
             type="number"
             min="0"
             max="100"
-            className="h-11"
+            className="h-10 text-sm"
             value={discountPercent}
             disabled={locked || !canDiscount}
             onChange={(e) => setDiscountPercent(e.target.value)}
@@ -584,15 +605,54 @@ export function CheckoutPanel({
                 inputMode="decimal"
                 min="0"
                 step="0.01"
-                className="h-12 text-lg tabular-nums"
+                className="h-12 text-lg tabular-nums font-bold"
                 value={amountText}
                 placeholder={String(remainingDue)}
                 onChange={(e) => setAmountText(e.target.value)}
               />
+
+              {/* Quick Cash Tender Denominations */}
+              {method === "CASH" && (
+                <div className="flex flex-wrap gap-1.5 pt-0.5">
+                  {[
+                    Math.ceil(remainingDue),
+                    remainingDue % 50 !== 0 ? Math.ceil(remainingDue / 50) * 50 : null,
+                    remainingDue % 100 !== 0 ? Math.ceil(remainingDue / 100) * 100 : null,
+                    100 > remainingDue ? 100 : null,
+                    200 > remainingDue ? 200 : null,
+                    500 > remainingDue ? 500 : null,
+                    1000 > remainingDue ? 1000 : null,
+                    2000 > remainingDue ? 2000 : null,
+                  ]
+                    .filter((v): v is number => v !== null)
+                    .filter((v, idx, arr) => arr.indexOf(v) === idx)
+                    .sort((a, b) => a - b)
+                    .slice(0, 5)
+                    .map((amt) => (
+                      <button
+                        key={amt}
+                        type="button"
+                        onClick={() => setAmountText(String(amt))}
+                        className={cn(
+                          "px-2.5 py-1 rounded-lg text-xs font-bold tabular-nums border transition-all active:scale-95 shadow-2xs",
+                          amountText === String(amt)
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "bg-muted/60 hover:bg-muted text-foreground border-border",
+                        )}
+                      >
+                        {amt === Math.ceil(remainingDue)
+                          ? `Exact ${formatCurrency(amt)}`
+                          : formatCurrency(amt)}
+                      </button>
+                    ))}
+                </div>
+              )}
+
               {plan.valid && plan.change > 0 && (
-                <p className="rounded-lg bg-success/10 px-3 py-2 text-base font-semibold tabular-nums text-success" role="status">
-                  Change due {formatCurrency(plan.change)}
-                </p>
+                <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-2.5 text-emerald-700 dark:text-emerald-400" role="status">
+                  <span className="text-xs uppercase tracking-wider font-semibold block">Change to return:</span>
+                  <span className="text-xl font-black tabular-nums">{formatCurrency(plan.change)}</span>
+                </div>
               )}
               {plan.valid && plan.partial && (
                 <p className="rounded-lg bg-warning/10 px-3 py-2 text-sm text-warning" role="status">
