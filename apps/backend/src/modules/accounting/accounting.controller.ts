@@ -12,8 +12,10 @@ import { ApiTags } from '@nestjs/swagger';
 import {
   cashClosingSchema,
   expenseSchema,
+  zReportSchema,
   type CashClosingDto,
   type ExpenseDto,
+  type ZReportDto,
   type SessionUser,
 } from '@nodedr-restaurant/types';
 import { Auth } from '../../common/decorators/auth.decorator';
@@ -109,6 +111,35 @@ export class AccountingController {
   ) {
     await this.access(u, branchId);
     return this.accounting.closeDay(branchId, u.id, body);
+  }
+
+  @Auth('accounting.manage', 'pos.day_end')
+  @Get('x-report')
+  async xReport(
+    @CurrentUser() u: SessionUser,
+    @Query('branchId') branchId: string,
+    @Query('date') date?: string,
+    @Query('openingFloat') openingFloat?: string,
+  ) {
+    await this.access(u, branchId);
+    return this.accounting.getXReport(
+      branchId,
+      date,
+      openingFloat ? Number(openingFloat) : 0,
+    );
+  }
+
+  @Auth('accounting.manage', 'pos.day_end')
+  @AuditAction('register.z_report', 'CashClosing')
+  @Post('z-report')
+  @UsePipes(new ZodValidationPipe(zReportSchema))
+  async zReport(
+    @CurrentUser() u: SessionUser,
+    @Query('branchId') branchId: string,
+    @Body() body: ZReportDto,
+  ) {
+    await this.access(u, branchId);
+    return this.accounting.generateZReport(branchId, u.id, body);
   }
 
   @Auth('accounting.manage')

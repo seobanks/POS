@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { QuickActions } from "@/components/dashboard/quick-actions";
 import { ShiftSalesCard } from "@/components/dashboard/shift-sales-card";
+import { WeatherDemandForecastCard } from "@/components/dashboard/weather-demand-forecast-card";
 import { TrendChart } from "@/components/dashboard/trend-chart";
 import { OrderDetailDialog } from "@/components/orders/order-detail-dialog";
 import { RefundDialog } from "@/components/orders/refund-dialog";
@@ -111,9 +112,11 @@ export default function DashboardPage() {
             label="Today's Revenue"
             value={formatCurrency(data.todayRevenue)}
             subtext={
-              data.shiftSales?.shiftsCount > 0
-                ? `${data.shiftSales.shiftsCount} shift${data.shiftSales.shiftsCount === 1 ? "" : "s"} tracked`
-                : undefined
+              data.covers && data.covers.todayCovers > 0
+                ? `${data.covers.todayCovers} covers · ${formatCurrency(data.covers.revenuePerCover)}/cov`
+                : data.shiftSales?.shiftsCount > 0
+                  ? `${data.shiftSales.shiftsCount} shift${data.shiftSales.shiftsCount === 1 ? "" : "s"} tracked`
+                  : undefined
             }
             icon={Wallet}
             accent="success"
@@ -147,6 +150,9 @@ export default function DashboardPage() {
           totalTodayRevenue={data.todayRevenue}
         />
       )}
+
+      {/* Weather & Event Demand Forecast Horizon */}
+      <WeatherDemandForecastCard />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <TrendChart

@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronLeft, MonitorSmartphone, ShoppingCart } from "lucide-react";
+import { ChevronLeft, MonitorSmartphone, Receipt, ShoppingCart } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { StatusNote, useNoteToast } from "@/components/ui/status-note";
@@ -10,6 +10,7 @@ import { CartPanel, type DeliveryDetails, type PosOrderType } from "@/components
 import { cartLineKey, portionText, type CartLine, type Portion } from "@/components/pos/cart-line";
 import { clearDraft, switchTableDraft, type Drafts } from "@/lib/pos-drafts";
 import { CheckoutPanel } from "@/components/pos/checkout-panel";
+import { DayEndModal } from "@/components/pos/day-end-modal";
 import { KitchenProgressWidget } from "@/components/pos/kitchen-progress-widget";
 import { ModifierPickerDialog } from "@/components/pos/modifier-picker-dialog";
 import { OfflineIndicator } from "@/components/pos/offline-indicator";
@@ -71,6 +72,7 @@ function PosPageInner() {
     setTableIdRaw(next);
   };
   const [selectedBillId, setSelectedBillId] = useState<string | null>(null);
+  const [dayEndOpen, setDayEndOpen] = useState(false);
   const [pickerItem, setPickerItem] = useState<MenuItem | null>(null);
   const [activeOrder, setActiveOrder] = useState<CreatedOrder | null>(null);
   const [activeCustomer, setActiveCustomer] = useState<OpenOrder["customer"]>(null);
@@ -410,6 +412,15 @@ function PosPageInner() {
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <OfflineIndicator branchId={branchId} />
+          <button
+            type="button"
+            onClick={() => setDayEndOpen(true)}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-500 transition-colors hover:bg-amber-500/20"
+            title="Open Z-Report day end closing and X-Report interim read"
+          >
+            <Receipt className="h-3.5 w-3.5" />
+            Day End
+          </button>
           <a
             href="/customer-display"
             target="_blank"
@@ -524,6 +535,12 @@ function PosPageInner() {
         onOpenChange={(open) => !open && setPickerItem(null)}
         onConfirm={handleModifierConfirm}
         allowCustom
+      />
+
+      <DayEndModal
+        open={dayEndOpen}
+        onOpenChange={setDayEndOpen}
+        branchId={branchId}
       />
     </div>
   );

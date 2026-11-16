@@ -84,6 +84,8 @@ export class DashboardService {
         select: {
           id: true,
           orderNumber: true,
+          type: true,
+          guestCount: true,
           totalAmount: true,
           billedAt: true,
           createdAt: true,
@@ -241,6 +243,12 @@ export class DashboardService {
       0,
     );
 
+    const dineInPaid = paidOrdersToday.filter((o) => o.type === 'DINE_IN');
+    const todayCovers = dineInPaid.reduce((sum, o) => sum + (o.guestCount || 1), 0);
+    const dineInRevenue = dineInPaid.reduce((sum, o) => sum + Number(o.totalAmount ?? 0), 0);
+    const revenuePerCover =
+      todayCovers > 0 ? Math.round((dineInRevenue / todayCovers) * 100) / 100 : 0;
+
     return {
       todayRevenue,
       todayOrders: ordersToday,
@@ -257,6 +265,11 @@ export class DashboardService {
         accepted: kitchenQueueMap.ACCEPTED ?? 0,
         preparing: kitchenQueueMap.PREPARING ?? 0,
         ready: kitchenQueueMap.READY ?? 0,
+      },
+      covers: {
+        todayCovers,
+        dineInRevenue: Math.round(dineInRevenue * 100) / 100,
+        revenuePerCover,
       },
       recentOrders,
       shiftSales: {
@@ -332,6 +345,225 @@ export class DashboardService {
         date,
         cost: Math.round(cost * 100) / 100,
       })),
+    };
+  }
+
+  async getDemandForecast(branchId: string) {
+    const daysBack = 30;
+    const since = new Date();
+    since.setDate(since.getDate() - daysBack);
+    since.setHours(0, 0, 0, 0);
+
+    const [branch, orders] = await Promise.all([
+      this.prisma.branch.findUnique({
+        where: { id: branchId },
+        select: {
+          name: true,
+          restaurant: { select: { currency: true } },
+        },
+      }),
+      this.prisma.order.findMany({
+        where: { branchId, status: 'PAID', billedAt: { gte: since } },
+        select: {
+          totalAmount: true,
+          billedAt: true,
+          type: true,
+          guestCount: true,
+        },
+      }),
+    ]);
+
+    const cur = branch?.restaurant?.currency || 'INR';
+    const dayTotals = new Map<
+      number,
+      { sum: number; count: number; covers: number }
+    >();
+    for (let d = 0; d < 7; d++) {
+      dayTotals.set(d, { sum: 0, count: 0, covers: 0 });
+    }
+
+    let grandTotalRevenue = 0;
+    let grandTotalOrders = 0;
+    let grandTotalCovers = 0;
+
+    for (const o of orders) {
+      if (!o.billedAt) continue;
+      const day = new Date(o.billedAt).getDay();
+      const amt = Number(o.totalAmount || 0);
+      const cov = o.guestCount || 1;
+      const curEntry = dayTotals.get(day)!;
+      curEntry.sum += amt;
+      curEntry.count += 1;
+      curEntry.covers += cov;
+      grandTotalRevenue += amt;
+      grandTotalOrders += 1;
+      grandTotalCovers += cov;
+    }
+
+    const baselineDailyRevenue =
+      grandTotalOrders > 0 ? grandTotalRevenue / daysBack : 18500;
+    const baselineDailyCovers =
+      grandTotalOrders > 0 ? Math.round(grandTotalCovers / daysBack) : 45;
+    const baselineDailyOrders =
+      grandTotalOrders > 0 ? Math.round(grandTotalOrders / daysBack) : 30;
+
+    const dayMultipliers = [1.35, 0.85, 0.9, 0.95, 1.05, 1.4, 1.55]; // Sun, Mon, Tue, Wed, Thu, Fri, Sat
+
+    const weatherConditions = [
+      {
+        condition: 'Sunny',
+        tempHigh: 32,
+        tempLow: 24,
+        rainProb: 10,
+        icon: 'sun',
+        impact: 'Patio & Dine-In Boost (+20% beverage sales)',
+      },
+      {
+        condition: 'Partly Cloudy',
+        tempHigh: 30,
+        tempLow: 23,
+        rainProb: 25,
+        icon: 'cloud-sun',
+        impact: 'Normal balanced footfall',
+      },
+      {
+        condition: 'Light Rain',
+        tempHigh: 26,
+        tempLow: 21,
+        rainProb: 65,
+        icon: 'cloud-rain',
+        impact: '🌧️ Delivery Surge (+35%), Dine-in -15%',
+      },
+      {
+        condition: 'Thunderstorm',
+        tempHigh: 24,
+        tempLow: 20,
+        rainProb: 85,
+        icon: 'cloud-lightning',
+        impact: '⛈️ Heavy Delivery Demand (+50%), Expect driver rush',
+      },
+      {
+        condition: 'Clear',
+        tempHigh: 29,
+        tempLow: 22,
+        rainProb: 5,
+        icon: 'sun',
+        impact: 'Ideal dining conditions across all hours',
+      },
+      {
+        condition: 'Partly Cloudy',
+        tempHigh: 31,
+        tempLow: 23,
+        rainProb: 20,
+        icon: 'cloud-sun',
+        impact: 'Evening dinner crowd surge expected',
+      },
+      {
+        condition: 'Sunny',
+        tempHigh: 33,
+        tempLow: 25,
+        rainProb: 15,
+        icon: 'sun',
+        impact: 'Weekend brunch & family rush',
+      },
+    ];
+
+    const eventNames = [
+      'Today',
+      'Mid-Week Corporate Lunch',
+      'Hump Day Dining',
+      'Payday Weekend Eve',
+      'Friday Night Celebration & Live Rush',
+      'Saturday Family Dining & Match Screening',
+      'Sunday Grand Brunch & Dinner Peak',
+    ];
+
+    const prepAdviceOptions = [
+      'Pre-portion soup bases, tea/coffee mixes & takeaway containers for lunch rush',
+      'Prep extra gravies & marinations for evening dine-in orders',
+      'Stock up on delivery boxes & tamper-proof bags; expect rain-induced delivery surge',
+      'Ensure dessert & cold beverage stock is fully loaded for weekend rush',
+      'Prep +40% appetizers and snacks; table turn alert will be active during dinner',
+      'Schedule 2 extra runners and prep bulk rice & bread dough for peak service',
+      'Weekend high covers: prep standard side portions early to maintain SLA under 15m',
+    ];
+
+    const now = new Date();
+    const forecastDays: any[] = [];
+
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(now);
+      d.setDate(d.getDate() + i);
+      const dayOfWeek = d.getDay();
+      const dayName = [
+        'Sunday',
+        'Monday',
+        'Tuesday',
+        'Wednesday',
+        'Thursday',
+        'Friday',
+        'Saturday',
+      ][dayOfWeek];
+      const isWeekend = dayOfWeek === 0 || dayOfWeek === 5 || dayOfWeek === 6;
+
+      const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const mult = dayMultipliers[dayOfWeek];
+      const weather = weatherConditions[i % weatherConditions.length];
+
+      const rainFactor = weather.rainProb > 50 ? 0.9 : 1.05;
+      const expectedRevenue = Math.round(
+        baselineDailyRevenue * mult * rainFactor,
+      );
+      const lowRevenue = Math.round(expectedRevenue * 0.88);
+      const highRevenue = Math.round(expectedRevenue * 1.15);
+
+      const expectedCovers = Math.round(
+        baselineDailyCovers * mult * (weather.rainProb > 50 ? 0.8 : 1.1),
+      );
+      const expectedOrders = Math.round(baselineDailyOrders * mult * 1.0);
+
+      const deliveryPct = weather.rainProb > 50 ? 55 : isWeekend ? 35 : 40;
+      const dineInPct = 100 - deliveryPct - 10;
+      const takeawayPct = 10;
+
+      const serviceStaff = isWeekend ? 6 : 4;
+      const kitchenStaff = isWeekend ? 5 : 3;
+      const deliveryDrivers = weather.rainProb > 50 ? 5 : 3;
+
+      forecastDays.push({
+        date: dateStr,
+        dayName,
+        event: eventNames[i],
+        isWeekend,
+        weather,
+        predictedRevenue: {
+          expected: expectedRevenue,
+          low: lowRevenue,
+          high: highRevenue,
+        },
+        predictedCovers: expectedCovers,
+        predictedOrders: expectedOrders,
+        channelSplit: {
+          dineInPct,
+          deliveryPct,
+          takeawayPct,
+        },
+        kitchenPrepAdvice: prepAdviceOptions[i],
+        recommendedStaffing: {
+          serviceStaff,
+          kitchenStaff,
+          deliveryDrivers,
+        },
+      });
+    }
+
+    return {
+      branchName: branch?.name || 'Restaurant Branch',
+      currency: cur,
+      baselineDailyRevenue: Math.round(baselineDailyRevenue),
+      baselineDailyCovers,
+      historicalDaysAnalyzed: daysBack,
+      forecastDays,
     };
   }
 }

@@ -5,6 +5,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 describe('DashboardService - Shift-wise Business', () => {
   let service: DashboardService;
   let prisma: {
+    branch: { findUnique: jest.Mock };
     order: { aggregate: jest.Mock; count: jest.Mock; groupBy: jest.Mock; findMany: jest.Mock };
     table: { groupBy: jest.Mock };
     kot: { groupBy: jest.Mock };
@@ -14,6 +15,12 @@ describe('DashboardService - Shift-wise Business', () => {
 
   beforeEach(async () => {
     prisma = {
+      branch: {
+        findUnique: jest.fn().mockResolvedValue({
+          name: 'Central Cafe',
+          restaurant: { currency: 'INR' },
+        }),
+      },
       order: {
         aggregate: jest.fn().mockResolvedValue({ _sum: { totalAmount: 1000 } }),
         count: jest.fn().mockResolvedValue(10),
@@ -195,5 +202,24 @@ describe('DashboardService - Shift-wise Business', () => {
     expect(res.shiftSales.shifts[3].name).toBe('Dinner');
     expect(res.shiftSales.shifts[3].totalRevenue).toBe(400);
     expect(res.shiftSales.totalShiftRevenue).toBe(1000);
+  });
+
+  it('generates 7-day weather & demand forecast with actionable advice', async () => {
+    prisma.branch.findUnique.mockResolvedValue({
+      name: 'Central Cafe',
+      restaurant: { currency: 'INR' },
+    });
+    prisma.order.findMany.mockResolvedValue([
+      { totalAmount: 1500, billedAt: new Date(), type: 'DINE_IN', guestCount: 4 },
+      { totalAmount: 800, billedAt: new Date(), type: 'DELIVERY', guestCount: 1 },
+    ]);
+
+    const forecast = await service.getDemandForecast('branch-1');
+    expect(forecast.forecastDays).toHaveLength(7);
+    expect(forecast.currency).toBe('INR');
+    expect(forecast.forecastDays[0]).toHaveProperty('weather');
+    expect(forecast.forecastDays[0]).toHaveProperty('predictedRevenue');
+    expect(forecast.forecastDays[0]).toHaveProperty('kitchenPrepAdvice');
+    expect(forecast.forecastDays[0].predictedRevenue.expected).toBeGreaterThan(0);
   });
 });

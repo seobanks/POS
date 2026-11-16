@@ -18,3 +18,14 @@ export const cashClosingSchema = z.object({
   note: z.string().max(300).optional(),
 });
 export type CashClosingDto = z.infer<typeof cashClosingSchema>;
+
+export const zReportSchema = z.object({
+  businessDate: isoDate,
+  openingFloat: z.coerce.number().min(0).default(0),
+  countedCash: z.coerce.number().min(0),
+  denominations: z.record(z.string(), z.number().int().nonnegative()).optional(),
+  isBlindCount: z.boolean().default(false),
+  note: z.string().max(300).optional(),
+});
+export type ZReportDto = z.infer<typeof zReportSchema>;
+

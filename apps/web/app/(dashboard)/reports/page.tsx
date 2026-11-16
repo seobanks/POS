@@ -12,6 +12,9 @@ import { useBranch } from "@/hooks/use-branch";
 import { api, ApiError } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { SchedulesPanel } from "@/components/reports/schedules-panel";
+import { MenuEngineeringQuadrant } from "@/components/reports/menu-engineering-quadrant";
+import { HourlyHeatmapView } from "@/components/reports/hourly-heatmap-view";
+import { StaffPerformanceView } from "@/components/reports/staff-performance-view";
 
 interface CatalogEntry {
   key: string;
@@ -101,8 +104,29 @@ export default function ReportsPage() {
               ))}
           </div>
 
+          {/* Specialized Interactive Visual Views */}
+          {data && data.rows.length > 0 && key === "menu-engineering" && (
+            <MenuEngineeringQuadrant rows={data.rows} />
+          )}
+
+          {data && data.rows.length > 0 && key === "hourly-heatmap" && (
+            <HourlyHeatmapView rows={data.rows} />
+          )}
+
+          {data && data.rows.length > 0 && key === "staff-performance" && (
+            <StaffPerformanceView rows={data.rows} />
+          )}
+
           <Card className="overflow-x-auto p-4">
-            <h2 className="mb-3 text-lg font-semibold text-foreground">{data?.title ?? catalog?.find((c) => c.key === key)?.title}</h2>
+            <h2 className="mb-3 text-lg font-semibold text-foreground">
+              {key === "menu-engineering"
+                ? "Full Menu Item Strategy Table"
+                : key === "hourly-heatmap"
+                  ? "Raw Hourly Matrix Table"
+                  : key === "staff-performance"
+                    ? "Full Staff Metrics Table"
+                    : (data?.title ?? catalog?.find((c) => c.key === key)?.title)}
+            </h2>
             <p className="mb-3 hidden text-xs text-muted-foreground print:block">
               {range.from} to {range.to}
             </p>

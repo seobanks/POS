@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import type { CashClosingDto, ExpenseDto } from '@nodedr-restaurant/types';
+import type { CashClosingDto, ExpenseDto, ZReportDto } from '@nodedr-restaurant/types';
 import { zonedRange } from '../../common/time';
 import { BranchTimeService } from '../../common/services/branch-time.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -143,6 +143,358 @@ export class AccountingService {
       orderBy: { businessDate: 'desc' },
       take: 60,
     });
+  }
+
+  // --- Z-Report & X-Report (Day End & Mid-Day Register Reads) ---------------
+
+  async getXReport(branchId: string, dateStr?: string, openingFloat = 0) {
+    const tz = await this.time.tzForBranch(branchId);
+    const date = dateStr || new Date().toISOString().slice(0, 10);
+    const from = dayStart(date);
+    const range = zonedRange(date, date, tz);
+
+    const [branch, orders, payments, refunds, expenses] = await Promise.all([
+      this.prisma.branch.findUnique({
+        where: { id: branchId },
+        select: {
+          name: true,
+          phone: true,
+          address: true,
+          restaurant: { select: { currency: true } },
+        },
+      }),
+      this.prisma.order.findMany({
+        where: { branchId, createdAt: range },
+        select: {
+          id: true,
+          status: true,
+          type: true,
+          totalAmount: true,
+          taxAmount: true,
+          discountAmount: true,
+          tipAmount: true,
+          guestCount: true,
+          items: {
+            select: {
+              quantity: true,
+              unitPriceSnapshot: true,
+              menuItem: { select: { category: { select: { name: true } } } },
+            },
+          },
+        },
+      }),
+      this.prisma.payment.findMany({
+        where: { order: { branchId }, createdAt: range },
+        select: { method: true, amount: true },
+      }),
+      this.prisma.refund.findMany({
+        where: { order: { branchId }, createdAt: range },
+        select: { method: true, amount: true },
+      }),
+      this.prisma.expense.findMany({
+        where: { branchId, spentOn: from },
+        select: { category: true, amount: true, paidFromCash: true, note: true },
+      }),
+    ]);
+
+    const paidOrders = orders.filter((o) => o.status === 'PAID');
+    const openOrders = orders.filter((o) => o.status !== 'PAID' && o.status !== 'CANCELLED');
+    const cancelledOrders = orders.filter((o) => o.status === 'CANCELLED');
+
+    const grossSales = round2(
+      paidOrders.reduce(
+        (sum, o) => sum + Number(o.totalAmount) + Number(o.discountAmount) - Number(o.tipAmount),
+        0,
+      ),
+    );
+    const totalDiscounts = round2(
+      paidOrders.reduce((sum, o) => sum + Number(o.discountAmount), 0),
+    );
+    const totalTaxes = round2(
+      paidOrders.reduce((sum, o) => sum + Number(o.taxAmount), 0),
+    );
+    const totalTips = round2(
+      paidOrders.reduce((sum, o) => sum + Number(o.tipAmount), 0),
+    );
+    const netSales = round2(grossSales - totalDiscounts);
+    const totalRevenue = round2(
+      paidOrders.reduce((sum, o) => sum + Number(o.totalAmount), 0),
+    );
+
+    const dineInOrders = paidOrders.filter((o) => o.type === 'DINE_IN');
+    const totalCovers = dineInOrders.reduce((sum, o) => sum + (o.guestCount || 1), 0);
+    const dineInRevenue = round2(
+      dineInOrders.reduce((sum, o) => sum + Number(o.totalAmount), 0),
+    );
+    const revPerCover = totalCovers > 0 ? round2(dineInRevenue / totalCovers) : 0;
+
+    // Payments by Tender
+    const paymentMethods: Record<string, { count: number; amount: number }> = {
+      CASH: { count: 0, amount: 0 },
+      CARD: { count: 0, amount: 0 },
+      UPI: { count: 0, amount: 0 },
+      DUE: { count: 0, amount: 0 },
+      OTHER: { count: 0, amount: 0 },
+    };
+    for (const p of payments) {
+      const m = p.method in paymentMethods ? p.method : 'OTHER';
+      paymentMethods[m].count += 1;
+      paymentMethods[m].amount = round2(paymentMethods[m].amount + Number(p.amount));
+    }
+
+    // Cash Drawer Reconciliation
+    const cashSales = paymentMethods.CASH.amount;
+    const cashRefunds = round2(
+      refunds.filter((r) => r.method === 'CASH').reduce((sum, r) => sum + Number(r.amount), 0),
+    );
+    const cashExpenses = round2(
+      expenses.filter((e) => e.paidFromCash).reduce((sum, e) => sum + Number(e.amount), 0),
+    );
+    const expectedCashInDrawer = expectedCash(
+      openingFloat,
+      cashSales,
+      cashRefunds,
+      cashExpenses,
+    );
+
+    // Categories breakdown
+    const categoryMap = new Map<string, { quantity: number; amount: number }>();
+    for (const o of paidOrders) {
+      for (const item of o.items) {
+        const cat = item.menuItem?.category?.name || 'General';
+        const cur = categoryMap.get(cat) || { quantity: 0, amount: 0 };
+        cur.quantity += item.quantity;
+        cur.amount = round2(cur.amount + item.quantity * Number(item.unitPriceSnapshot || 0));
+        categoryMap.set(cat, cur);
+      }
+    }
+    const categorySales = Array.from(categoryMap.entries()).map(([category, val]) => ({
+      category,
+      quantity: val.quantity,
+      amount: val.amount,
+    }));
+
+    const cur = branch?.restaurant?.currency || 'INR';
+    const sym = cur === 'INR' ? 'Rs.' : cur === 'USD' ? '$' : cur === 'EUR' ? '€' : cur;
+
+    const printableSlip = [
+      '========================================',
+      '           HANVA RESTAURANT POS         ',
+      '           REGISTER X-REPORT            ',
+      '========================================',
+      `Branch:    ${branch?.name || 'Main Branch'}`,
+      `Date:      ${date}`,
+      `Generated: ${new Date().toLocaleTimeString()}`,
+      '----------------------------------------',
+      'SALES SUMMARY',
+      `  Gross Sales:        ${sym} ${grossSales.toFixed(2)}`,
+      `  Discounts:        - ${sym} ${totalDiscounts.toFixed(2)}`,
+      `  Net Sales:          ${sym} ${netSales.toFixed(2)}`,
+      `  Taxes (GST):        ${sym} ${totalTaxes.toFixed(2)}`,
+      `  Tips:               ${sym} ${totalTips.toFixed(2)}`,
+      `  Total Collected:    ${sym} ${totalRevenue.toFixed(2)}`,
+      '----------------------------------------',
+      'ORDERS & COVERS',
+      `  Total Orders:       ${orders.length}`,
+      `  Paid Orders:        ${paidOrders.length}`,
+      `  Open Orders:        ${openOrders.length}`,
+      `  Cancelled Orders:   ${cancelledOrders.length}`,
+      `  Dine-In Covers:     ${totalCovers}`,
+      `  Revenue / Cover:    ${sym} ${revPerCover.toFixed(2)}`,
+      '----------------------------------------',
+      'PAYMENT TENDER BREAKDOWN',
+      `  Cash:         (${paymentMethods.CASH.count})  ${sym} ${paymentMethods.CASH.amount.toFixed(2)}`,
+      `  Card:         (${paymentMethods.CARD.count})  ${sym} ${paymentMethods.CARD.amount.toFixed(2)}`,
+      `  UPI:          (${paymentMethods.UPI.count})  ${sym} ${paymentMethods.UPI.amount.toFixed(2)}`,
+      `  Due/Credit:   (${paymentMethods.DUE.count})  ${sym} ${paymentMethods.DUE.amount.toFixed(2)}`,
+      `  Other:        (${paymentMethods.OTHER.count})  ${sym} ${paymentMethods.OTHER.amount.toFixed(2)}`,
+      '----------------------------------------',
+      'CASH DRAWER AUDIT',
+      `  Opening Float:      ${sym} ${openingFloat.toFixed(2)}`,
+      `  (+) Cash Sales:     ${sym} ${cashSales.toFixed(2)}`,
+      `  (-) Cash Refunds:   ${sym} ${cashRefunds.toFixed(2)}`,
+      `  (-) Cash Expenses:  ${sym} ${cashExpenses.toFixed(2)}`,
+      '  --------------------------------------',
+      `  EXPECTED IN TILL:   ${sym} ${expectedCashInDrawer.toFixed(2)}`,
+      '========================================',
+      '    *** MID-DAY / INTERIM READ ONLY *** ',
+      '========================================',
+    ].join('\n');
+
+    return {
+      businessDate: date,
+      branchName: branch?.name || 'Main Branch',
+      currency: cur,
+      openingFloat,
+      sales: {
+        grossSales,
+        totalDiscounts,
+        netSales,
+        totalTaxes,
+        totalTips,
+        totalRevenue,
+      },
+      orders: {
+        total: orders.length,
+        paid: paidOrders.length,
+        open: openOrders.length,
+        cancelled: cancelledOrders.length,
+        dineIn: dineInOrders.length,
+        takeaway: paidOrders.filter((o) => o.type === 'TAKEAWAY').length,
+        delivery: paidOrders.filter((o) => o.type === 'DELIVERY').length,
+      },
+      covers: {
+        totalCovers,
+        dineInRevenue,
+        revenuePerCover: revPerCover,
+      },
+      payments: paymentMethods,
+      refunds: {
+        count: refunds.length,
+        totalAmount: round2(refunds.reduce((sum, r) => sum + Number(r.amount), 0)),
+        cashAmount: cashRefunds,
+      },
+      cashDrawer: {
+        openingFloat,
+        cashSales,
+        cashRefunds,
+        cashExpenses,
+        expectedCash: expectedCashInDrawer,
+      },
+      categorySales,
+      printableSlip,
+    };
+  }
+
+  async generateZReport(branchId: string, userId: string, dto: ZReportDto) {
+    const xReport = await this.getXReport(branchId, dto.businessDate, dto.openingFloat);
+    const date = dto.businessDate;
+    const from = dayStart(date);
+
+    // Calculate counted cash: either from denomination breakdown or direct input
+    let countedCash = dto.countedCash;
+    if (dto.denominations && Object.keys(dto.denominations).length > 0) {
+      let calcSum = 0;
+      for (const [denomStr, count] of Object.entries(dto.denominations)) {
+        const denomVal = parseFloat(denomStr);
+        if (!isNaN(denomVal) && count > 0) {
+          calcSum += denomVal * count;
+        }
+      }
+      countedCash = round2(calcSum);
+    }
+
+    const variance = round2(countedCash - xReport.cashDrawer.expectedCash);
+    const zReportNumber = `Z-${date.replace(/-/g, '')}-${Date.now().toString().slice(-4)}`;
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { name: true },
+    });
+    const cashierName = user?.name || 'Staff';
+
+    const notePayload = JSON.stringify({
+      note: dto.note || '',
+      isBlindCount: dto.isBlindCount ?? false,
+      denominations: dto.denominations || {},
+      zReportNumber,
+      cashierName,
+      closedAt: new Date().toISOString(),
+    });
+
+    const closing = await this.prisma.cashClosing.upsert({
+      where: {
+        branchId_businessDate: { branchId, businessDate: from },
+      },
+      update: {
+        openingFloat: dto.openingFloat,
+        cashSales: xReport.cashDrawer.cashSales,
+        cashExpenses: xReport.cashDrawer.cashExpenses,
+        expectedCash: xReport.cashDrawer.expectedCash,
+        countedCash,
+        variance,
+        note: notePayload,
+        closedById: userId,
+      },
+      create: {
+        branchId,
+        businessDate: from,
+        openingFloat: dto.openingFloat,
+        cashSales: xReport.cashDrawer.cashSales,
+        cashExpenses: xReport.cashDrawer.cashExpenses,
+        expectedCash: xReport.cashDrawer.expectedCash,
+        countedCash,
+        variance,
+        note: notePayload,
+        closedById: userId,
+      },
+    });
+
+    const sym = xReport.currency === 'INR' ? 'Rs.' : xReport.currency === 'USD' ? '$' : xReport.currency;
+    const varLabel = variance === 0 ? 'BALANCED' : variance > 0 ? `OVER (+${sym} ${variance.toFixed(2)})` : `SHORT (-${sym} ${Math.abs(variance).toFixed(2)})`;
+
+    const zSlip = [
+      '========================================',
+      '           HANVA RESTAURANT POS         ',
+      '           OFFICIAL Z-REPORT            ',
+      '========================================',
+      `Z-Report No: ${zReportNumber}`,
+      `Branch:      ${xReport.branchName}`,
+      `Date:        ${date}`,
+      `Closed At:   ${new Date().toLocaleTimeString()} ${new Date().toLocaleDateString()}`,
+      `Cashier:     ${cashierName}`,
+      '----------------------------------------',
+      'SALES SUMMARY',
+      `  Gross Sales:        ${sym} ${xReport.sales.grossSales.toFixed(2)}`,
+      `  Discounts:        - ${sym} ${xReport.sales.totalDiscounts.toFixed(2)}`,
+      `  Net Sales:          ${sym} ${xReport.sales.netSales.toFixed(2)}`,
+      `  Taxes (GST):        ${sym} ${xReport.sales.totalTaxes.toFixed(2)}`,
+      `  Tips:               ${sym} ${xReport.sales.totalTips.toFixed(2)}`,
+      `  Total Revenue:      ${sym} ${xReport.sales.totalRevenue.toFixed(2)}`,
+      '----------------------------------------',
+      'ORDERS & COVERS',
+      `  Total Orders:       ${xReport.orders.total}`,
+      `  Paid Orders:        ${xReport.orders.paid}`,
+      `  Covers (Guests):    ${xReport.covers.totalCovers}`,
+      `  Rev / Cover:        ${sym} ${xReport.covers.revenuePerCover.toFixed(2)}`,
+      '----------------------------------------',
+      'PAYMENT TENDER TOTALS',
+      `  Cash:         (${xReport.payments.CASH.count})  ${sym} ${xReport.payments.CASH.amount.toFixed(2)}`,
+      `  Card:         (${xReport.payments.CARD.count})  ${sym} ${xReport.payments.CARD.amount.toFixed(2)}`,
+      `  UPI:          (${xReport.payments.UPI.count})  ${sym} ${xReport.payments.UPI.amount.toFixed(2)}`,
+      `  Due/Credit:   (${xReport.payments.DUE.count})  ${sym} ${xReport.payments.DUE.amount.toFixed(2)}`,
+      `  Other:        (${xReport.payments.OTHER.count})  ${sym} ${xReport.payments.OTHER.amount.toFixed(2)}`,
+      '----------------------------------------',
+      'CASH DRAWER RECONCILIATION',
+      `  Opening Float:      ${sym} ${dto.openingFloat.toFixed(2)}`,
+      `  (+) Cash Sales:     ${sym} ${xReport.cashDrawer.cashSales.toFixed(2)}`,
+      `  (-) Cash Refunds:   ${sym} ${xReport.cashDrawer.cashRefunds.toFixed(2)}`,
+      `  (-) Cash Paid Out:  ${sym} ${xReport.cashDrawer.cashExpenses.toFixed(2)}`,
+      '  --------------------------------------',
+      `  Expected in Till:   ${sym} ${xReport.cashDrawer.expectedCash.toFixed(2)}`,
+      `  Counted Cash:       ${sym} ${countedCash.toFixed(2)}`,
+      `  Variance:           ${varLabel}`,
+      `  Blind Count Mode:   ${dto.isBlindCount ? 'YES' : 'NO'}`,
+      ...(dto.note ? [`  Manager Note:       ${dto.note}`] : []),
+      '----------------------------------------',
+      '  Manager / Cashier Signature:          ',
+      '                                        ',
+      '  ____________________________________  ',
+      '========================================',
+      '     *** REGISTER CLOSED / RESET ***    ',
+      '========================================',
+    ].join('\n');
+
+    return {
+      closing,
+      zReportNumber,
+      cashierName,
+      xReport,
+      countedCash,
+      variance,
+      isBlindCount: dto.isBlindCount ?? false,
+      printableSlip: zSlip,
+    };
   }
 
   // --- Reports -------------------------------------------------------------

@@ -1,11 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import { Lock, Receipt } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { DayEndModal } from "@/components/pos/day-end-modal";
 import {
   useAccountingActions,
   useBranchOverview,
@@ -133,6 +135,7 @@ function CashClose({ branchId }: { branchId: string | null }) {
   const [floor, setFloor] = useState("0");
   const [counted, setCounted] = useState("");
   const [note, setNote] = useState("");
+  const [dayEndModalOpen, setDayEndModalOpen] = useState(false);
   const { data: preview } = useClosingPreview(branchId, date, Number(floor) || 0);
   const { data: closings } = useClosings(branchId);
   const { closeDay } = useAccountingActions(branchId);
@@ -140,6 +143,19 @@ function CashClose({ branchId }: { branchId: string | null }) {
 
   return (
     <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-base font-bold text-foreground">Cash Register & Day End</h2>
+          <p className="text-xs text-muted-foreground">Manage till drawer reconciliation, blind counting, and print official Z-Report slips</p>
+        </div>
+        <Button
+          onClick={() => setDayEndModalOpen(true)}
+          className="gap-2 font-semibold bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs"
+        >
+          <Receipt className="h-4 w-4" /> Open Z-Report & Blind Day End
+        </Button>
+      </div>
+
       <Card className="flex flex-col gap-3 p-4">
         <div className="flex flex-wrap gap-3">
           <Input type="date" className="w-40" value={date} onChange={(e) => setDate(e.target.value)} />
@@ -190,6 +206,12 @@ function CashClose({ branchId }: { branchId: string | null }) {
           <p className="p-6 text-center text-sm text-muted-foreground">No closed days yet.</p>
         )}
       </Card>
+
+      <DayEndModal
+        open={dayEndModalOpen}
+        onOpenChange={setDayEndModalOpen}
+        branchId={branchId}
+      />
     </div>
   );
 }

@@ -40,6 +40,26 @@ export const REPORT_CATALOG = [
     title: 'Inventory valuation',
     group: 'Inventory',
   },
+  {
+    key: 'menu-engineering',
+    title: 'Menu engineering (Star / Plowhorse)',
+    group: 'Analytics',
+  },
+  {
+    key: 'hourly-heatmap',
+    title: 'Hourly sales heatmap',
+    group: 'Analytics',
+  },
+  {
+    key: 'covers-analysis',
+    title: 'Cover count & RevPC',
+    group: 'Analytics',
+  },
+  {
+    key: 'staff-performance',
+    title: 'Staff performance leaderboard',
+    group: 'Staff',
+  },
 ] as const;
 
 // Reports that expose revenue / sales totals. They need the dedicated
@@ -59,6 +79,10 @@ export const SALES_REPORT_KEYS: ReadonlySet<string> = new Set([
   'customers',
   'retention',
   'staff-sales',
+  'menu-engineering',
+  'hourly-heatmap',
+  'covers-analysis',
+  'staff-performance',
 ]);
 
 export function canViewReport(
@@ -619,6 +643,319 @@ export class ReportsService {
           [...by.entries()]
             .sort((a, b) => b[1].cost - a[1].cost)
             .map(([k, r]) => [k, r.n, round2(r.cost)]),
+        );
+      }
+
+      case 'menu-engineering': {
+        const [items, orderItems] = await Promise.all([
+          this.prisma.menuItem.findMany({
+            where: { branchId },
+            select: {
+              id: true,
+              name: true,
+              price: true,
+              costPrice: true,
+              category: { select: { name: true } },
+            },
+          }),
+          this.prisma.orderItem.findMany({
+            where: {
+              order: { branchId, status: 'PAID', billedAt: range },
+            },
+            select: {
+              menuItemId: true,
+              quantity: true,
+              unitPriceSnapshot: true,
+            },
+          }),
+        ]);
+
+        const salesByItem = new Map<string, { qty: number; revenue: number }>();
+        for (const oi of orderItems) {
+          if (!oi.menuItemId) continue;
+          const cur = salesByItem.get(oi.menuItemId) ?? { qty: 0, revenue: 0 };
+          cur.qty += oi.quantity;
+          cur.revenue += oi.quantity * Number(oi.unitPriceSnapshot || 0);
+          salesByItem.set(oi.menuItemId, cur);
+        }
+
+        const activeItems = items.filter((i) => salesByItem.has(i.id) || Number(i.price) > 0);
+        const totalItemsCount = activeItems.length || 1;
+        const totalQtySold = [...salesByItem.values()].reduce((sum, v) => sum + v.qty, 0);
+
+        let totalMarginSum = 0;
+        const analyzed = activeItems.map((item) => {
+          const s = salesByItem.get(item.id) ?? { qty: 0, revenue: 0 };
+          const price = Number(item.price);
+          const foodCost = Number(item.costPrice || price * 0.32);
+          const unitMargin = round2(price - foodCost);
+          const totalMargin = round2(s.qty * unitMargin);
+          totalMarginSum += totalMargin;
+          return {
+            id: item.id,
+            name: item.name,
+            category: item.category?.name || 'General',
+            qty: s.qty,
+            price: round2(price),
+            foodCost: round2(foodCost),
+            unitMargin,
+            totalMargin,
+            revenue: round2(s.revenue),
+          };
+        });
+
+        const avgPopularity = totalQtySold > 0 ? (totalQtySold / totalItemsCount) * 0.7 : 0;
+        const avgMargin = totalQtySold > 0 ? round2(totalMarginSum / totalQtySold) : 0;
+
+        const rows = analyzed
+          .map((item) => {
+            const isHighVolume = item.qty >= avgPopularity;
+            const isHighMargin = item.unitMargin >= avgMargin;
+
+            let classification = 'Dog 🐕';
+            let strategy = 'Re-engineer recipe or consider removing';
+
+            if (isHighVolume && isHighMargin) {
+              classification = 'Star ⭐';
+              strategy = 'Maintain consistent quality, feature prominently, protect price';
+            } else if (isHighVolume && !isHighMargin) {
+              classification = 'Plowhorse 🐎';
+              strategy = 'Raise price slightly, reduce portion, or optimize ingredient costs';
+            } else if (!isHighVolume && isHighMargin) {
+              classification = 'Puzzle 🧩';
+              strategy = 'Reposition on menu, train staff to upsell, run promotion';
+            }
+
+            return [
+              item.name,
+              item.category,
+              classification,
+              item.qty,
+              item.price,
+              item.foodCost,
+              item.unitMargin,
+              item.totalMargin,
+              item.revenue,
+              strategy,
+            ];
+          })
+          .sort((a, b) => Number(b[8]) - Number(a[8]));
+
+        return out(
+          [
+            'Item',
+            'Category',
+            'Classification',
+            'Units Sold',
+            'Price',
+            'Food Cost',
+            'Unit Margin',
+            'Total Margin',
+            'Revenue',
+            'Action Strategy',
+          ],
+          rows,
+        );
+      }
+
+      case 'hourly-heatmap': {
+        const orders = await this.prisma.order.findMany({
+          where: { branchId, status: 'PAID', billedAt: range },
+          select: { billedAt: true, totalAmount: true },
+        });
+
+        const matrix = new Map<string, { count: number; sales: number }>();
+        for (let d = 0; d < 7; d++) {
+          for (let h = 0; h < 24; h++) {
+            matrix.set(`${d}-${h}`, { count: 0, sales: 0 });
+          }
+        }
+
+        let maxSales = 0;
+        for (const o of orders) {
+          const dt = new Date(o.billedAt!);
+          const day = dt.getDay();
+          const hour = dt.getHours();
+          const key = `${day}-${hour}`;
+          const cur = matrix.get(key) || { count: 0, sales: 0 };
+          cur.count += 1;
+          cur.sales += Number(o.totalAmount);
+          if (cur.sales > maxSales) maxSales = cur.sales;
+          matrix.set(key, cur);
+        }
+
+        const rows: CsvValue[][] = [];
+        for (let d = 0; d < 7; d++) {
+          for (let h = 0; h < 24; h++) {
+            const entry = matrix.get(`${d}-${h}`)!;
+            const aov = entry.count > 0 ? round2(entry.sales / entry.count) : 0;
+            const hourLabel = `${String(h).padStart(2, '0')}:00 - ${String((h + 1) % 24).padStart(2, '0')}:00`;
+            const intensity = maxSales > 0 ? entry.sales / maxSales : 0;
+            const level =
+              intensity > 0.75
+                ? 'Peak Rush 🔥'
+                : intensity > 0.4
+                  ? 'High ⚡'
+                  : intensity > 0.15
+                    ? 'Moderate 🟢'
+                    : 'Low / Quiet ⚪';
+            rows.push([
+              hourLabel,
+              d,
+              DAYS[d],
+              entry.count,
+              round2(entry.sales),
+              aov,
+              level,
+            ]);
+          }
+        }
+
+        return out(
+          ['Hour Window', 'Day Index', 'Day', 'Order Count', 'Total Sales', 'AOV', 'Traffic Level'],
+          rows,
+        );
+      }
+
+      case 'covers-analysis': {
+        const orders = await this.prisma.order.findMany({
+          where: { branchId, status: 'PAID', billedAt: range, type: 'DINE_IN' },
+          select: {
+            billedAt: true,
+            totalAmount: true,
+            guestCount: true,
+            tableId: true,
+          },
+        });
+
+        const byDay = new Map<string, { orders: number; covers: number; sales: number }>();
+        for (const o of orders) {
+          const d = localDate(o.billedAt!, tz);
+          const cur = byDay.get(d) ?? { orders: 0, covers: 0, sales: 0 };
+          cur.orders += 1;
+          cur.covers += o.guestCount || 1;
+          cur.sales += Number(o.totalAmount);
+          byDay.set(d, cur);
+        }
+
+        const rows = [...byDay.entries()]
+          .sort((a, b) => b[0].localeCompare(a[0]))
+          .map(([date, val]) => {
+            const revPc = val.covers > 0 ? round2(val.sales / val.covers) : 0;
+            const avgCovers = val.orders > 0 ? round2(val.covers / val.orders) : 0;
+            return [
+              date,
+              val.orders,
+              val.covers,
+              round2(val.sales),
+              revPc,
+              avgCovers,
+            ];
+          });
+
+        return out(
+          [
+            'Date',
+            'Dine-In Orders',
+            'Total Covers (Guests)',
+            'Dine-In Sales',
+            'RevPC (Revenue per Cover)',
+            'Avg Covers per Order',
+          ],
+          rows,
+        );
+      }
+
+      case 'staff-performance': {
+        const orders = await this.prisma.order.findMany({
+          where: { branchId, createdAt: range },
+          select: {
+            status: true,
+            totalAmount: true,
+            tipAmount: true,
+            discountAmount: true,
+            createdById: true,
+            createdBy: {
+              select: {
+                id: true,
+                name: true,
+                role: { select: { label: true, name: true } },
+              },
+            },
+          },
+        });
+
+        const staffMap = new Map<
+          string,
+          {
+            name: string;
+            role: string;
+            total: number;
+            paid: number;
+            cancelled: number;
+            grossSales: number;
+            netSales: number;
+            tips: number;
+          }
+        >();
+
+        for (const o of orders) {
+          const id = o.createdById || 'unassigned';
+          const name = o.createdBy?.name || 'Self-Service / Online';
+          const role = o.createdBy?.role?.label || o.createdBy?.role?.name || 'General Staff';
+          const cur = staffMap.get(id) ?? {
+            name,
+            role,
+            total: 0,
+            paid: 0,
+            cancelled: 0,
+            grossSales: 0,
+            netSales: 0,
+            tips: 0,
+          };
+          cur.total += 1;
+          if (o.status === 'PAID') {
+            cur.paid += 1;
+            cur.grossSales += Number(o.totalAmount) + Number(o.discountAmount) - Number(o.tipAmount);
+            cur.netSales += Number(o.totalAmount) - Number(o.tipAmount);
+            cur.tips += Number(o.tipAmount);
+          } else if (o.status === 'CANCELLED') {
+            cur.cancelled += 1;
+          }
+          staffMap.set(id, cur);
+        }
+
+        const rows = [...staffMap.values()]
+          .map((s) => {
+            const aov = s.paid > 0 ? round2(s.netSales / s.paid) : 0;
+            const cancelRate = s.total > 0 ? round2((s.cancelled / s.total) * 100) : 0;
+            return [
+              s.name,
+              s.role,
+              s.paid,
+              s.cancelled,
+              round2(s.grossSales),
+              round2(s.netSales),
+              aov,
+              round2(s.tips),
+              `${cancelRate}%`,
+            ];
+          })
+          .sort((a, b) => Number(b[5]) - Number(a[5]));
+
+        return out(
+          [
+            'Staff Name',
+            'Role',
+            'Completed Orders',
+            'Cancelled Orders',
+            'Gross Sales',
+            'Net Sales',
+            'Average Order Value (AOV)',
+            'Tips Collected',
+            'Cancellation Rate',
+          ],
+          rows,
         );
       }
 

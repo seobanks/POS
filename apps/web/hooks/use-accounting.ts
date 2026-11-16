@@ -53,6 +53,61 @@ export interface BranchRow {
   inventoryValue: number;
 }
 
+export interface XReportData {
+  businessDate: string;
+  branchName: string;
+  currency: string;
+  openingFloat: number;
+  sales: {
+    grossSales: number;
+    totalDiscounts: number;
+    netSales: number;
+    totalTaxes: number;
+    totalTips: number;
+    totalRevenue: number;
+  };
+  orders: {
+    total: number;
+    paid: number;
+    open: number;
+    cancelled: number;
+    dineIn: number;
+    takeaway: number;
+    delivery: number;
+  };
+  covers: {
+    totalCovers: number;
+    dineInRevenue: number;
+    revenuePerCover: number;
+  };
+  payments: Record<string, { count: number; amount: number }>;
+  refunds: {
+    count: number;
+    totalAmount: number;
+    cashAmount: number;
+  };
+  cashDrawer: {
+    openingFloat: number;
+    cashSales: number;
+    cashRefunds: number;
+    cashExpenses: number;
+    expectedCash: number;
+  };
+  categorySales: { category: string; quantity: number; amount: number }[];
+  printableSlip: string;
+}
+
+export interface ZReportResponse {
+  closing: ClosingRow;
+  zReportNumber: string;
+  cashierName: string;
+  xReport: XReportData;
+  countedCash: number;
+  variance: number;
+  isBlindCount: boolean;
+  printableSlip: string;
+}
+
 const q = (b: string | null) => `branchId=${b}`;
 
 export function useExpenses(branchId: string | null, from: string, to: string) {
@@ -98,6 +153,17 @@ export function useBranchOverview(from: string, to: string) {
   });
 }
 
+export function useXReport(branchId: string | null, date?: string, openingFloat = 0) {
+  return useQuery({
+    queryKey: ["acct", "x-report", branchId, date, openingFloat],
+    queryFn: () =>
+      api.get<XReportData>(
+        `/accounting/x-report?${q(branchId)}${date ? `&date=${date}` : ""}&openingFloat=${openingFloat}`,
+      ),
+    enabled: !!branchId,
+  });
+}
+
 export function useAccountingActions(branchId: string | null) {
   const qc = useQueryClient();
   const done = () => qc.invalidateQueries({ queryKey: ["acct"] });
@@ -115,6 +181,20 @@ export function useAccountingActions(branchId: string | null) {
       mutationFn: (dto: { businessDate: string; openingFloat: number; countedCash: number; note?: string }) =>
         api.post(`/accounting/closing?${q(branchId)}`, dto),
       onSuccess: done,
+    }),
+    generateZReport: useMutation({
+      mutationFn: (dto: {
+        businessDate: string;
+        openingFloat: number;
+        countedCash: number;
+        denominations?: Record<string, number>;
+        isBlindCount?: boolean;
+        note?: string;
+      }) => api.post<ZReportResponse>(`/accounting/z-report?${q(branchId)}`, dto),
+      onSuccess: () => {
+        qc.invalidateQueries({ queryKey: ["acct"] });
+        qc.invalidateQueries({ queryKey: ["dashboard"] });
+      },
     }),
   };
 }

@@ -2,19 +2,23 @@
 
 import { useMemo, useState } from "react";
 import {
+  AlertTriangle,
   ChefHat,
   Clock,
   LayoutGrid,
   Loader2,
   Package,
   RefreshCw,
+  ShieldAlert,
   ShoppingBag,
   TrendingUp,
   Truck,
+  UserCheck,
   Users,
   Utensils,
   UtensilsCrossed,
 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -61,6 +65,10 @@ export function LiveOrdersView({ branchId }: LiveOrdersViewProps) {
     pendingTotalAmount,
     runningTables,
     runningTablesRevenue,
+    totalActiveCovers,
+    revPerCover,
+    overdueTablesCount,
+    criticalTablesCount,
   } = useMemo(() => {
     let runningOrdersCount = 0;
     let runningOrdersAmount = 0;
@@ -128,6 +136,33 @@ export function LiveOrdersView({ branchId }: LiveOrdersViewProps) {
     const runningTables = Array.from(tableMap.values());
     const runningTablesRevenue = dineInAmount;
 
+    let totalActiveCovers = 0;
+    let overdueTablesCount = 0;
+    let criticalTablesCount = 0;
+
+    for (const order of runningTables) {
+      const cov = order.guestCount || 2;
+      totalActiveCovers += cov;
+
+      const createdAt = order.createdAt
+        ? new Date(order.createdAt).getTime()
+        : Date.now();
+      const elapsedMins = Math.max(
+        1,
+        Math.floor((Date.now() - createdAt) / 60000),
+      );
+      if (elapsedMins > 60) {
+        criticalTablesCount += 1;
+      } else if (elapsedMins > 45) {
+        overdueTablesCount += 1;
+      }
+    }
+
+    const revPerCover =
+      totalActiveCovers > 0
+        ? Math.round((runningTablesRevenue / totalActiveCovers) * 100) / 100
+        : 0;
+
     return {
       runningOrdersCount,
       runningOrdersAmount,
@@ -147,6 +182,10 @@ export function LiveOrdersView({ branchId }: LiveOrdersViewProps) {
       pendingTotalAmount,
       runningTables,
       runningTablesRevenue,
+      totalActiveCovers,
+      revPerCover,
+      overdueTablesCount,
+      criticalTablesCount,
     };
   }, [openOrders]);
 
@@ -402,36 +441,93 @@ export function LiveOrdersView({ branchId }: LiveOrdersViewProps) {
            TAB 2: RUNNING TABLES GRID (Matches Petpooja Image 2)
            ======================================================== */
         <div className="space-y-5">
-          {/* Top Metrics Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Card className="p-4 rounded-2xl border border-border bg-card flex items-center gap-4">
-              <div className="h-12 w-12 rounded-xl bg-secondary flex items-center justify-center text-foreground shrink-0">
-                <Users className="h-6 w-6 text-muted-foreground" />
+          {/* Top 4 Metrics Cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+            <Card className="p-4 rounded-2xl border border-border bg-card flex items-center gap-3">
+              <div className="h-11 w-11 rounded-xl bg-secondary flex items-center justify-center text-foreground shrink-0">
+                <Users className="h-5 w-5 text-muted-foreground" />
               </div>
               <div>
-                <span className="text-2xl font-bold text-foreground tabular-nums block">
+                <span className="text-xl font-bold text-foreground tabular-nums block">
                   {runningTables.length}
                 </span>
-                <span className="text-xs text-muted-foreground font-medium">
+                <span className="text-[11px] text-muted-foreground font-medium">
                   Active Tables
                 </span>
               </div>
             </Card>
 
-            <Card className="p-4 rounded-2xl border border-border bg-card flex items-center gap-4">
-              <div className="h-12 w-12 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
-                <TrendingUp className="h-6 w-6" />
+            <Card className="p-4 rounded-2xl border border-border bg-card flex items-center gap-3">
+              <div className="h-11 w-11 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                <UserCheck className="h-5 w-5" />
               </div>
               <div>
-                <span className="text-2xl font-bold text-foreground tabular-nums block">
+                <span className="text-xl font-bold text-foreground tabular-nums block">
+                  {totalActiveCovers}
+                </span>
+                <span className="text-[11px] text-muted-foreground font-medium">
+                  Active Covers (Guests)
+                </span>
+              </div>
+            </Card>
+
+            <Card className="p-4 rounded-2xl border border-border bg-card flex items-center gap-3">
+              <div className="h-11 w-11 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                <TrendingUp className="h-5 w-5" />
+              </div>
+              <div>
+                <span className="text-xl font-bold text-foreground tabular-nums block">
                   {formatCurrency(runningTablesRevenue)}
                 </span>
-                <span className="text-xs text-muted-foreground font-medium">
+                <span className="text-[11px] text-muted-foreground font-medium">
                   Revenue (Estimated)
                 </span>
               </div>
             </Card>
+
+            <Card className="p-4 rounded-2xl border border-border bg-card flex items-center gap-3">
+              <div className="h-11 w-11 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                <Utensils className="h-5 w-5" />
+              </div>
+              <div>
+                <span className="text-xl font-bold text-foreground tabular-nums block">
+                  {formatCurrency(revPerCover)}
+                </span>
+                <span className="text-[11px] text-muted-foreground font-medium">
+                  Rev / Cover (RevPC)
+                </span>
+              </div>
+            </Card>
           </div>
+
+          {/* Table Timer Overdue Alert Banner */}
+          {(overdueTablesCount > 0 || criticalTablesCount > 0) && (
+            <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-4 flex flex-wrap items-center justify-between gap-3 animate-pulse">
+              <div className="flex items-center gap-3">
+                <div className="h-9 w-9 rounded-xl bg-rose-500/20 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="h-5 w-5" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-foreground flex items-center gap-2">
+                    Table Turnover Alert: {criticalTablesCount + overdueTablesCount} Table{criticalTablesCount + overdueTablesCount === 1 ? "" : "s"} Overdue (&gt; 45 min)
+                  </h4>
+                  <p className="text-xs text-muted-foreground">
+                    {criticalTablesCount > 0
+                      ? `${criticalTablesCount} table(s) exceeded 60 minutes! `
+                      : ""}
+                    Prompt floor staff to offer dessert, verify guest satisfaction, or print bill to release tables.
+                  </p>
+                </div>
+              </div>
+
+              <Badge
+                variant="destructive"
+                className="font-mono text-xs px-3 py-1 bg-rose-600 text-white"
+              >
+                {criticalTablesCount > 0 ? "🚨 Critical Turnover SLA" : "⚠️ Turn Alert Active"}
+              </Badge>
+            </div>
+          )}
 
           {/* Running Tables Grid */}
           {runningTables.length === 0 ? (
@@ -452,6 +548,8 @@ export function LiveOrdersView({ branchId }: LiveOrdersViewProps) {
                   order.table?.name ||
                   (order.table ? `Table ${order.table.number}` : "Table");
                 const totalAmt = Number(order.totalAmount || 0);
+                const covers = order.guestCount || 2;
+                const perCover = covers > 0 ? Math.round(totalAmt / covers) : totalAmt;
 
                 // Elapsed dining minutes
                 const createdAt = order.createdAt
@@ -462,19 +560,32 @@ export function LiveOrdersView({ branchId }: LiveOrdersViewProps) {
                   Math.floor((Date.now() - createdAt) / 60000),
                 );
 
-                const isSlow = elapsedMins > 45;
-                const isModerate = elapsedMins > 25;
+                const isCritical = elapsedMins > 60;
+                const isOverdue = elapsedMins > 45 && !isCritical;
+                const isModerate = elapsedMins > 25 && elapsedMins <= 45;
 
                 return (
                   <button
                     key={order.id}
                     type="button"
                     onClick={() => handleTableClick(order)}
-                    className="p-4 rounded-2xl border border-border/80 bg-card hover:border-primary/60 hover:shadow-md transition-all text-center flex flex-col items-center justify-between gap-3 group active:scale-95"
+                    className={cn(
+                      "p-3.5 rounded-2xl border bg-card hover:border-primary/60 hover:shadow-md transition-all text-center flex flex-col items-center justify-between gap-2.5 group active:scale-95",
+                      isCritical
+                        ? "border-rose-500/70 bg-rose-500/5 shadow-xs ring-1 ring-rose-500/30"
+                        : isOverdue
+                          ? "border-amber-500/60 bg-amber-500/5"
+                          : "border-border/80",
+                    )}
                   >
-                    <span className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">
-                      {tableName}
-                    </span>
+                    <div className="w-full">
+                      <span className="text-sm font-bold text-foreground group-hover:text-primary transition-colors block truncate">
+                        {tableName}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground font-mono block">
+                        👥 {covers} covers · {formatCurrency(perCover)}/cov
+                      </span>
+                    </div>
 
                     <span className="text-xs font-bold bg-secondary/80 text-foreground px-3 py-1 rounded-lg tabular-nums border border-border/60">
                       {formatCurrency(totalAmt)}
@@ -482,16 +593,28 @@ export function LiveOrdersView({ branchId }: LiveOrdersViewProps) {
 
                     <div
                       className={cn(
-                        "text-[10px] font-semibold flex items-center gap-1 px-2 py-0.5 rounded-md",
-                        isSlow
-                          ? "bg-red-500/10 text-red-600 dark:text-red-400"
-                          : isModerate
-                            ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
-                            : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+                        "text-[10px] font-semibold flex items-center justify-center gap-1 px-2 py-0.5 rounded-md w-full",
+                        isCritical
+                          ? "bg-rose-500/15 text-rose-600 dark:text-rose-400 font-bold"
+                          : isOverdue
+                            ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 font-bold"
+                            : isModerate
+                              ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                              : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
                       )}
                     >
-                      <Clock className="h-2.5 w-2.5" />
-                      <span>{elapsedMins} Min Time Lapsed</span>
+                      {isCritical ? (
+                        <AlertTriangle className="h-2.5 w-2.5 text-rose-500 animate-bounce" />
+                      ) : (
+                        <Clock className="h-2.5 w-2.5" />
+                      )}
+                      <span>
+                        {isCritical
+                          ? `🚨 ${elapsedMins}m Overdue`
+                          : isOverdue
+                            ? `⚠️ ${elapsedMins}m Overdue`
+                            : `${elapsedMins}m Lapsed`}
+                      </span>
                     </div>
                   </button>
                 );

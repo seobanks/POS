@@ -33,4 +33,14 @@ export class DashboardController {
     await this.branchAccess.assertAccess(user.restaurantId, branchId);
     return this.dashboardService.getTrends(branchId);
   }
+
+  @Auth('dashboard.sales.view')
+  @Get('demand-forecast')
+  async getDemandForecast(
+    @CurrentUser() user: SessionUser,
+    @Query('branchId') branchId: string,
+  ) {
+    await this.branchAccess.assertAccess(user.restaurantId, branchId);
+    return this.dashboardService.getDemandForecast(branchId);
+  }
 }
