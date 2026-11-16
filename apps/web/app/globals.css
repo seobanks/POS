@@ -78,14 +78,14 @@
   --chart-4: #475569;
   --chart-5: #94A3B8;
   --radius: 0.625rem;            /* Modern 10px radius */
-  --sidebar: #0F172A;             /* Obsidian Slate header/sidebar */
-  --sidebar-foreground: #F8FAFC;
-  --sidebar-primary: #F59E0B;
-  --sidebar-primary-foreground: #0F172A;
-  --sidebar-accent: #1E293B;
-  --sidebar-accent-foreground: #F8FAFC;
-  --sidebar-border: #1E293B;
-  --sidebar-ring: #F59E0B;
+  --sidebar: #FFFFFF;             /* Clean Porcelain White in light theme */
+  --sidebar-foreground: #0F172A;  /* Deep Slate text */
+  --sidebar-primary: #B45309;     /* Warm Amber 700 */
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #F1F5F9;      /* Subtle Light Slate hover/active */
+  --sidebar-accent-foreground: #0F172A;
+  --sidebar-border: #E2E8F0;      /* Clean light border */
+  --sidebar-ring: #D97706;
 }
 
 .dark {

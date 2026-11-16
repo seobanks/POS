@@ -98,18 +98,49 @@ export class OrdersService {
   }
 
   async getOrder(branchId: string, id: string) {
-    const order = await this.prisma.order.findFirst({
-      where: { id, branchId },
-      include: {
-        table: true,
-        customer: true,
-        items: { include: { modifiers: true, menuItem: true } },
-        kots: { include: { items: true, station: true } },
-        payments: true,
-      },
-    });
-    if (!order) throw new NotFoundException('Order not found');
-    return order;
+    try {
+      const order = await this.prisma.order.findFirst({
+        where: { id, branchId },
+        include: {
+          table: true,
+          customer: true,
+          items: { include: { modifiers: true, menuItem: true } },
+          kots: { include: { items: true, station: true } },
+          payments: true,
+        },
+      });
+      if (!order) throw new NotFoundException('Order not found');
+      return order;
+    } catch (err: any) {
+      if (err instanceof NotFoundException) throw err;
+      this.logger.warn(`getOrder failed: ${err?.message || err}. Ensuring schema columns and retrying.`);
+      const columns = [
+        `ALTER TABLE "menu_items" ADD COLUMN IF NOT EXISTS "shortCode" TEXT`,
+        `ALTER TABLE "menu_items" ADD COLUMN IF NOT EXISTS "onlineDisplayName" TEXT`,
+        `ALTER TABLE "menu_items" ADD COLUMN IF NOT EXISTS "isHighlighted" BOOLEAN NOT NULL DEFAULT false`,
+        `ALTER TABLE "menu_items" ADD COLUMN IF NOT EXISTS "qrOrderingEnabled" BOOLEAN NOT NULL DEFAULT true`,
+        `ALTER TABLE "menu_items" ADD COLUMN IF NOT EXISTS "restrictChargesAndTax" BOOLEAN NOT NULL DEFAULT false`,
+      ];
+      for (const sql of columns) {
+        try {
+          await this.prisma.$executeRawUnsafe(sql);
+        } catch {
+          // ignore
+        }
+      }
+      const order = await this.prisma.order.findFirst({
+        where: { id, branchId },
+        include: {
+          table: true,
+          customer: true,
+          items: { include: { modifiers: true, menuItem: true } },
+          kots: { include: { items: true, station: true } },
+          payments: true,
+        },
+      });
+      if (!order) throw new NotFoundException('Order not found');
+      return order;
+    }
   }
 
   async printerProfile(branchId: string) {

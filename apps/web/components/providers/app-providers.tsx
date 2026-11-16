@@ -38,6 +38,11 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
             });
           })
           .catch((err) => console.warn("[SW] Registration skipped or failed:", err));
+
+        // When a new service worker takes over and purges old cache versions
+        navigator.serviceWorker.addEventListener("controllerchange", () => {
+          console.log("[SW] Controller changed to new version.");
+        });
       });
     }
   }, []);

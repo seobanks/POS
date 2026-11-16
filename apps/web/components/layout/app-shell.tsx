@@ -88,14 +88,14 @@ function AppShellContent({
       {/* Desktop Collapsible Sidebar */}
       <aside
         className={cn(
-          "hidden shrink-0 flex-col border-r border-sidebar-border bg-sidebar transition-[width] duration-200 ease-in-out lg:flex",
+          "hidden h-screen sticky top-0 shrink-0 flex-col border-r border-sidebar-border bg-sidebar transition-[width] duration-200 ease-in-out lg:flex overflow-hidden",
           isCollapsed ? "w-[68px]" : "w-64",
         )}
       >
         {/* Brand Header with Collapse Toggle */}
         <div
           className={cn(
-            "flex h-16 items-center border-b border-sidebar-border/30 transition-all",
+            "flex h-16 shrink-0 items-center border-b border-sidebar-border/30 transition-all",
             isCollapsed ? "justify-center px-2" : "justify-between px-4",
           )}
         >
@@ -116,18 +116,18 @@ function AppShellContent({
         </div>
 
         {/* Branch Switcher */}
-        <div className={cn("pt-3 pb-1 transition-all", isCollapsed ? "px-2" : "px-3")}>
+        <div className={cn("shrink-0 pt-3 pb-1 transition-all", isCollapsed ? "px-2" : "px-3")}>
           <BranchSwitcher collapsed={isCollapsed} />
         </div>
 
-        {/* Navigation links */}
-        <div className="flex-1 overflow-y-auto py-2">
+        {/* Navigation links - Scrollable within viewport */}
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain py-2 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-sidebar-foreground/15 hover:[&::-webkit-scrollbar-thumb]:bg-sidebar-foreground/25">
           <SidebarNav user={user} collapsed={isCollapsed} />
         </div>
 
         {/* Bottom Expand Toggle in Collapsed Mode / Full Footer in Expanded Mode */}
         {isCollapsed ? (
-          <div className="flex items-center justify-center border-t border-sidebar-border/40 p-2.5">
+          <div className="flex shrink-0 items-center justify-center border-t border-sidebar-border/40 p-2.5">
             <button
               type="button"
               onClick={toggleSidebar}
@@ -139,24 +139,28 @@ function AppShellContent({
             </button>
           </div>
         ) : (
-          <BrandFooter />
+          <div className="shrink-0 mt-auto">
+            <BrandFooter />
+          </div>
         )}
       </aside>
 
       {/* Mobile Drawer */}
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-        <SheetContent side="left" className="w-72 bg-sidebar p-0">
+        <SheetContent side="left" className="w-72 bg-sidebar text-sidebar-foreground p-0 flex flex-col h-full border-r border-sidebar-border">
           <SheetTitle className="sr-only">Navigation</SheetTitle>
-          <div className="flex h-16 items-center px-5 border-b border-sidebar-border/30">
+          <div className="flex h-16 shrink-0 items-center px-5 border-b border-sidebar-border/30">
             <RestaurantBrand />
           </div>
-          <div className="px-3 pt-3 pb-1">
+          <div className="shrink-0 px-3 pt-3 pb-1">
             <BranchSwitcher />
           </div>
-          <div className="flex-1 overflow-y-auto py-2">
+          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain py-2 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-sidebar-foreground/15">
             <SidebarNav user={user} onNavigate={() => setMobileOpen(false)} />
           </div>
-          <BrandFooter />
+          <div className="shrink-0 mt-auto">
+            <BrandFooter />
+          </div>
         </SheetContent>
       </Sheet>
 
