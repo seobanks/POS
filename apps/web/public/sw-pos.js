@@ -4,7 +4,14 @@
  * Provides offline navigation with high-resilience Offline Emergency Hub
  */
 
-const CACHE_NAME = 'hanva-pos-shell-v3';
+const CACHE_NAME = 'hanva-pos-shell-v4';
+
+// Listen for direct messages from client tabs (e.g. to skip waiting immediately)
+self.addEventListener('message', (event) => {
+  if (event.data && (event.data.type === 'SKIP_WAITING' || event.data === 'skipWaiting')) {
+    self.skipWaiting();
+  }
+});
 
 // Core shell assets to pre-cache on install
 const PRECACHE_ASSETS = [
