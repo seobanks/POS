@@ -24,19 +24,22 @@ export class PermissionsSyncService implements OnModuleInit {
   }
 
   private async ensureSchemaBackfill() {
-    try {
-      // Safe additive DDL for remote PostgreSQL instances (e.g. Neon)
-      await this.prisma.$executeRawUnsafe(`
-        ALTER TABLE "menu_items" ADD COLUMN IF NOT EXISTS "shortCode" TEXT;
-        ALTER TABLE "menu_items" ADD COLUMN IF NOT EXISTS "onlineDisplayName" TEXT;
-        ALTER TABLE "menu_items" ADD COLUMN IF NOT EXISTS "isHighlighted" BOOLEAN NOT NULL DEFAULT false;
-        ALTER TABLE "menu_items" ADD COLUMN IF NOT EXISTS "qrOrderingEnabled" BOOLEAN NOT NULL DEFAULT true;
-        ALTER TABLE "menu_items" ADD COLUMN IF NOT EXISTS "restrictChargesAndTax" BOOLEAN NOT NULL DEFAULT false;
-      `);
-      this.logger.log('Database columns for menu_items verified / backfilled successfully.');
-    } catch (err: any) {
-      this.logger.warn(`Database column auto-backfill check: ${err?.message || err}`);
+    const columns = [
+      `ALTER TABLE "menu_items" ADD COLUMN IF NOT EXISTS "shortCode" TEXT`,
+      `ALTER TABLE "menu_items" ADD COLUMN IF NOT EXISTS "onlineDisplayName" TEXT`,
+      `ALTER TABLE "menu_items" ADD COLUMN IF NOT EXISTS "isHighlighted" BOOLEAN NOT NULL DEFAULT false`,
+      `ALTER TABLE "menu_items" ADD COLUMN IF NOT EXISTS "qrOrderingEnabled" BOOLEAN NOT NULL DEFAULT true`,
+      `ALTER TABLE "menu_items" ADD COLUMN IF NOT EXISTS "restrictChargesAndTax" BOOLEAN NOT NULL DEFAULT false`,
+    ];
+
+    for (const sql of columns) {
+      try {
+        await this.prisma.$executeRawUnsafe(sql);
+      } catch (err: any) {
+        this.logger.warn(`Database column auto-backfill warning for [${sql}]: ${err?.message || err}`);
+      }
     }
+    this.logger.log('Database columns for menu_items verified / backfilled successfully.');
   }
 
   async sync() {

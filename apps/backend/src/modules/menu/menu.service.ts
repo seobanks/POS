@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import type {
@@ -13,6 +14,8 @@ import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
 export class MenuService {
+  private readonly logger = new Logger(MenuService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
@@ -89,37 +92,90 @@ export class MenuService {
     });
   }
 
+  private async ensureColumns() {
+    const columns = [
+      `ALTER TABLE "menu_items" ADD COLUMN IF NOT EXISTS "shortCode" TEXT`,
+      `ALTER TABLE "menu_items" ADD COLUMN IF NOT EXISTS "onlineDisplayName" TEXT`,
+      `ALTER TABLE "menu_items" ADD COLUMN IF NOT EXISTS "isHighlighted" BOOLEAN NOT NULL DEFAULT false`,
+      `ALTER TABLE "menu_items" ADD COLUMN IF NOT EXISTS "qrOrderingEnabled" BOOLEAN NOT NULL DEFAULT true`,
+      `ALTER TABLE "menu_items" ADD COLUMN IF NOT EXISTS "restrictChargesAndTax" BOOLEAN NOT NULL DEFAULT false`,
+    ];
+    for (const sql of columns) {
+      try {
+        await this.prisma.$executeRawUnsafe(sql);
+      } catch (err: any) {
+        this.logger.warn(`Column check failed on [${sql}]: ${err?.message || err}`);
+      }
+    }
+  }
+
   // --- Menu items -----------------------------------------------------------
 
-  listItems(branchId: string, categoryId?: string) {
-    return this.prisma.menuItem.findMany({
-      where: {
-        branchId,
-        isActive: true,
-        ...(categoryId ? { categoryId } : {}),
-      },
-      orderBy: { sortOrder: 'asc' },
-      include: {
-        category: true,
-        station: true,
-        modifierGroups: {
-          include: { modifierGroup: { include: { modifiers: true } } },
+  async listItems(branchId: string, categoryId?: string) {
+    try {
+      return await this.prisma.menuItem.findMany({
+        where: {
+          branchId,
+          isActive: true,
+          ...(categoryId ? { categoryId } : {}),
         },
-      },
-    });
+        orderBy: { sortOrder: 'asc' },
+        include: {
+          category: true,
+          station: true,
+          modifierGroups: {
+            include: { modifierGroup: { include: { modifiers: true } } },
+          },
+        },
+      });
+    } catch (err: any) {
+      this.logger.warn(`listItems query encountered an error: ${err?.message || err}. Ensuring schema columns.`);
+      await this.ensureColumns();
+      return this.prisma.menuItem.findMany({
+        where: {
+          branchId,
+          isActive: true,
+          ...(categoryId ? { categoryId } : {}),
+        },
+        orderBy: { sortOrder: 'asc' },
+        include: {
+          category: true,
+          station: true,
+          modifierGroups: {
+            include: { modifierGroup: { include: { modifiers: true } } },
+          },
+        },
+      });
+    }
   }
 
   async getItem(branchId: string, id: string) {
-    const item = await this.prisma.menuItem.findFirst({
-      where: { id, branchId },
-      include: {
-        modifierGroups: {
-          include: { modifierGroup: { include: { modifiers: true } } },
+    try {
+      const item = await this.prisma.menuItem.findFirst({
+        where: { id, branchId },
+        include: {
+          modifierGroups: {
+            include: { modifierGroup: { include: { modifiers: true } } },
+          },
         },
-      },
-    });
-    if (!item) throw new NotFoundException('Menu item not found');
-    return item;
+      });
+      if (!item) throw new NotFoundException('Menu item not found');
+      return item;
+    } catch (err: any) {
+      if (err instanceof NotFoundException) throw err;
+      this.logger.warn(`getItem query encountered an error: ${err?.message || err}. Ensuring schema columns.`);
+      await this.ensureColumns();
+      const item = await this.prisma.menuItem.findFirst({
+        where: { id, branchId },
+        include: {
+          modifierGroups: {
+            include: { modifierGroup: { include: { modifiers: true } } },
+          },
+        },
+      });
+      if (!item) throw new NotFoundException('Menu item not found');
+      return item;
+    }
   }
 
   async createItem(branchId: string, dto: MenuItemDto) {
@@ -383,12 +439,23 @@ export class MenuService {
   }
 
   async getDeletedItems(branchId: string) {
-    return this.prisma.menuItem.findMany({
-      where: { branchId, isActive: false },
-      include: { category: true },
-      orderBy: { updatedAt: 'desc' },
-      take: 50,
-    });
+    try {
+      return await this.prisma.menuItem.findMany({
+        where: { branchId, isActive: false },
+        include: { category: true },
+        orderBy: { updatedAt: 'desc' },
+        take: 50,
+      });
+    } catch (err: any) {
+      this.logger.warn(`getDeletedItems query encountered an error: ${err?.message || err}. Ensuring schema columns.`);
+      await this.ensureColumns();
+      return this.prisma.menuItem.findMany({
+        where: { branchId, isActive: false },
+        include: { category: true },
+        orderBy: { updatedAt: 'desc' },
+        take: 50,
+      });
+    }
   }
 
   async restoreItem(branchId: string, id: string) {
