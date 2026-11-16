@@ -1,12 +1,13 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Download, Printer } from "lucide-react";
+import { Download, FileText, Printer, SlidersHorizontal } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { hasPermission, useCurrentUser } from "@/hooks/use-auth";
 import { useBranch } from "@/hooks/use-branch";
 import { api, ApiError } from "@/lib/api";
@@ -15,12 +16,7 @@ import { SchedulesPanel } from "@/components/reports/schedules-panel";
 import { MenuEngineeringQuadrant } from "@/components/reports/menu-engineering-quadrant";
 import { HourlyHeatmapView } from "@/components/reports/hourly-heatmap-view";
 import { StaffPerformanceView } from "@/components/reports/staff-performance-view";
-
-interface CatalogEntry {
-  key: string;
-  title: string;
-  group: string;
-}
+import { ReportsSidebar, type CatalogEntry } from "@/components/reports/reports-sidebar";
 interface ReportResult {
   key: string;
   title: string;
@@ -35,6 +31,7 @@ export default function ReportsPage() {
   const { data: me } = useCurrentUser();
   const canExport = hasPermission(me?.user, "data.export");
   const [key, setKey] = useState("sales-daily");
+  const [mobileSheetOpen, setMobileSheetOpen] = useState(false);
   const [range, setRange] = useState(() => ({
     from: iso(new Date(Date.now() - 29 * 86_400_000)),
     to: iso(new Date()),
@@ -52,7 +49,7 @@ export default function ReportsPage() {
     retry: false,
   });
 
-  const groups = [...new Set(catalog?.map((c) => c.group))];
+  const currentReport = catalog?.find((c) => c.key === key);
 
   return (
     <div className="flex flex-col gap-6">
@@ -61,29 +58,52 @@ export default function ReportsPage() {
         <p className="text-sm text-muted-foreground">Filter by date, print, export to Excel, PDF or CSV, or email on a schedule</p>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[220px_1fr]">
-        <nav className="flex flex-col gap-4 print:hidden" aria-label="Reports">
-          {groups.map((g) => (
-            <div key={g} className="flex flex-col gap-1">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{g}</p>
-              {catalog
-                ?.filter((c) => c.group === g)
-                .map((c) => (
-                  <button
-                    key={c.key}
-                    type="button"
-                    onClick={() => setKey(c.key)}
-                    className={cn(
-                      "rounded-lg px-3 py-1.5 text-left text-sm transition-colors",
-                      key === c.key ? "bg-primary text-primary-foreground" : "text-foreground hover:bg-secondary",
-                    )}
-                  >
-                    {c.title}
-                  </button>
-                ))}
-            </div>
-          ))}
-        </nav>
+      {/* Mobile Report Selector Bar (< lg) */}
+      <div className="lg:hidden flex items-center justify-between p-3 rounded-xl border border-border/70 bg-card/70 backdrop-blur-sm print:hidden">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="p-2 rounded-lg bg-primary/10 text-primary">
+            <FileText className="h-4 w-4" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] text-muted-foreground uppercase font-semibold tracking-wider">Active Report</p>
+            <p className="text-sm font-medium text-foreground truncate">
+              {currentReport?.title ?? key}
+            </p>
+          </div>
+        </div>
+        <Sheet open={mobileSheetOpen} onOpenChange={setMobileSheetOpen}>
+          <SheetTrigger
+            render={
+              <Button variant="outline" size="sm" className="gap-1.5 text-xs shrink-0">
+                <SlidersHorizontal className="h-3.5 w-3.5" />
+                Change Report
+              </Button>
+            }
+          />
+          <SheetContent side="left" className="w-[310px] sm:w-[340px] p-0 flex flex-col bg-card border-r border-border">
+            <SheetTitle className="sr-only">Select Report</SheetTitle>
+            <ReportsSidebar
+              catalog={catalog}
+              selectedKey={key}
+              onSelectKey={(newKey) => {
+                setKey(newKey);
+                setMobileSheetOpen(false);
+              }}
+              className="h-full border-none rounded-none bg-transparent shadow-none"
+            />
+          </SheetContent>
+        </Sheet>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-[280px_1fr] items-start">
+        {/* Desktop Sticky Scrollable Reports Directory (lg+) */}
+        <div className="hidden lg:block print:hidden">
+          <ReportsSidebar
+            catalog={catalog}
+            selectedKey={key}
+            onSelectKey={setKey}
+          />
+        </div>
 
         <div className="flex min-w-0 flex-col gap-4">
           <div className="flex flex-wrap items-center gap-2 print:hidden">
