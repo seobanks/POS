@@ -8,11 +8,26 @@ import { cn } from "@/lib/utils";
 // Password field with a show/hide toggle — easy to mistype on a phone, so let
 // people check what they typed. The toggle is a real 40px button (not a tiny
 // icon) and keeps focus in the field so typing carries on uninterrupted.
+export interface PasswordInputProps
+  extends Omit<React.ComponentProps<"input">, "type"> {
+  onVisibilityChange?: (visible: boolean) => void;
+}
+
 export function PasswordInput({
   className,
+  onVisibilityChange,
   ...props
-}: Omit<React.ComponentProps<"input">, "type">) {
+}: PasswordInputProps) {
   const [visible, setVisible] = React.useState(false);
+
+  const toggleVisibility = () => {
+    setVisible((v) => {
+      const next = !v;
+      onVisibilityChange?.(next);
+      return next;
+    });
+  };
+
   return (
     <div className="relative">
       <Input
@@ -26,7 +41,7 @@ export function PasswordInput({
       />
       <button
         type="button"
-        onClick={() => setVisible((v) => !v)}
+        onClick={toggleVisibility}
         onMouseDown={(e) => e.preventDefault()}
         aria-label={visible ? "Hide password" : "Show password"}
         aria-pressed={visible}
