@@ -1,7 +1,10 @@
+import * as crypto from 'crypto';
 import {
   Body,
   Controller,
+  ForbiddenException,
   Get,
+  Headers,
   Param,
   Post,
   Req,
@@ -54,15 +57,24 @@ export class AuthController {
     private readonly twoFactor: TwoFactorService,
   ) {}
 
-  // Tighter than the app-wide default — unauthenticated and creates a full
-  // restaurant + owner account, a more attractive abuse target than login.
+  // Restaurant provisioning endpoint: STRICTLY RESTRICTED TO AUTHORIZED BACKEND SYSTEMS.
+  // Public self-serve registration is completely forbidden.
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('register')
   @UsePipes(new ZodValidationPipe(registerSchema))
   async register(
+    @Headers('x-backend-admin-secret') backendSecret: string | undefined,
+    @Headers('x-provisioning-secret') provisioningSecret: string | undefined,
     @Body() body: unknown,
     @Res({ passthrough: true }) res: Response,
   ) {
+    const secret = backendSecret || provisioningSecret;
+    if (!this.isAuthorizedBackendSecret(secret)) {
+      throw new ForbiddenException(
+        'Public restaurant registration is disabled. Restaurant provisioning is strictly restricted to authorized backend systems.',
+      );
+    }
+
     const { token, user } = await this.authService.register(body as never);
     this.setSessionCookie(res, token);
     return { user };
@@ -188,7 +200,27 @@ export class AuthController {
   @Get('setup-status')
   async setupStatus() {
     const isSetup = await this.authService.hasAnyRestaurant();
-    return { isSetup };
+    return { isSetup, registrationAllowed: false };
+  }
+
+  private isAuthorizedBackendSecret(providedSecret?: string): boolean {
+    if (!providedSecret || typeof providedSecret !== 'string') return false;
+
+    const configuredSecret =
+      process.env.ADMIN_PROVISIONING_SECRET ||
+      process.env.BACKEND_ADMIN_KEY ||
+      process.env.JWT_SECRET;
+
+    if (!configuredSecret) return false;
+
+    try {
+      const bufProvided = Buffer.from(providedSecret);
+      const bufConfigured = Buffer.from(configuredSecret);
+      if (bufProvided.length !== bufConfigured.length) return false;
+      return crypto.timingSafeEqual(bufProvided, bufConfigured);
+    } catch {
+      return false;
+    }
   }
 
   private setSessionCookie(res: Response, token: string) {

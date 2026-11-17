@@ -220,11 +220,8 @@ export default function LoginPage() {
           </Button>
         </form>
 
-        <p className="mt-8 text-center text-xs text-muted-foreground">
-          New restaurant?{" "}
-          <Link href="/signup" className="font-medium text-foreground hover:underline">
-            Create an account
-          </Link>
+        <p className="mt-8 text-center text-xs text-muted-foreground/60 font-medium">
+          Hanva POS Enterprise &middot; Authorized Access Only
         </p>
       </motion.div>
     </main>
