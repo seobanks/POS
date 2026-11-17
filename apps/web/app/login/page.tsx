@@ -6,7 +6,17 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
-import { AlertCircle, Loader2, WifiOff, Coffee, Sparkles, Citrus } from "lucide-react";
+import {
+  AlertCircle,
+  Loader2,
+  WifiOff,
+  Coffee,
+  Sparkles,
+  Citrus,
+  Flame,
+  Box,
+  Wine,
+} from "lucide-react";
 import { Logo } from "@/components/layout/logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,12 +28,20 @@ import { safeZodResolver } from "@/lib/safe-zod-resolver";
 import { RestaurantBackdrop } from "@/components/login/restaurant-backdrop";
 import { WaiterConcierge, type WaiterMood } from "@/components/login/waiter-concierge";
 import { BeverageGauge } from "@/components/login/beverage-gauge";
+import { InteractiveCard3D } from "@/components/login/interactive-card-3d";
+import { DiningBell } from "@/components/login/dining-bell";
+import { SoundToggle } from "@/components/login/sound-toggle";
+import { LottieChefStation } from "@/components/login/lottie-chef";
+import { Spline3DStage } from "@/components/login/spline-stage";
+import { useCulinarySound } from "@/components/login/sound-effects";
+import { triggerDiningRoomEntryConfetti } from "@/components/login/confetti-effects";
 import { cn } from "@/lib/utils";
 
 export default function LoginPage() {
   const router = useRouter();
   const login = useLogin();
   const { data: auth, isSuccess: isAuthenticated } = useCurrentUser();
+  const { playPour, playIceClink, playSuccessChime, playErrorChime } = useCulinarySound();
 
   useEffect(() => {
     if (isAuthenticated && auth?.user) {
@@ -42,6 +60,8 @@ export default function LoginPage() {
   const [focusedField, setFocusedField] = useState<"username" | "password" | "totp" | null>(null);
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [flavor, setFlavor] = useState<"mango" | "coffee" | "berry">("mango");
+  const [stationTab, setStationTab] = useState<"mixology" | "kitchen" | "3d">("mixology");
+  const [bellRingsCount, setBellRingsCount] = useState(0);
 
   useEffect(() => {
     setIsOnline(typeof navigator !== "undefined" ? navigator.onLine : true);
@@ -85,12 +105,15 @@ export default function LoginPage() {
 
   const onSubmit = (dto: LoginDto) => {
     setError(null);
+    playSuccessChime();
+    triggerDiningRoomEntryConfetti();
     login.mutate(dto, {
       onSuccess: (data) => {
         const isWaiter = isWaiterUser(data?.user);
         window.location.href = isWaiter ? "/captain" : "/dashboard";
       },
       onError: (err) => {
+        playErrorChime();
         if (err instanceof ApiError && err.message === "TWO_FACTOR_REQUIRED") {
           setNeedsCode(true);
           return;
@@ -107,6 +130,7 @@ export default function LoginPage() {
   };
 
   const onInvalid = (fieldErrors: typeof errors) => {
+    playErrorChime();
     const firstKey = Object.keys(fieldErrors)[0] as keyof typeof fieldErrors;
     if (firstKey && fieldErrors[firstKey]?.message) {
       setError(fieldErrors[firstKey]!.message!);
@@ -115,30 +139,35 @@ export default function LoginPage() {
     }
   };
 
+  const emailFieldProps = register("email");
+  const passwordFieldProps = register("password");
+
   return (
-    <main className="relative min-h-screen flex flex-col items-center justify-center overflow-x-hidden bg-background px-4 py-12">
+    <main className="relative min-h-screen flex flex-col items-center justify-center overflow-x-hidden bg-background px-4 py-10">
       {/* Interactive Restaurant Living Backdrop */}
       <RestaurantBackdrop />
 
       <div className="w-full max-w-2xl flex flex-col items-center">
-        {/* Top Waiter Concierge Character */}
-        <div className="mb-4">
+        {/* Top Maitre D' Concierge Character Mascot */}
+        <div className="mb-3">
           <WaiterConcierge
             mood={waiterMood}
             isPasswordVisible={isPasswordVisible}
             charCount={emailValue.length}
+            bellRingsCount={bellRingsCount}
           />
         </div>
 
-        {/* Main Station Card */}
-        <motion.div
-          initial={prefersReducedMotion ? false : { opacity: 0, y: 18 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-          className="w-full rounded-3xl border border-border/80 bg-card/85 p-6 sm:p-8 shadow-2xl backdrop-blur-xl ring-1 ring-border/50"
-        >
+        {/* 3D Interactive Perspectives Card */}
+        <InteractiveCard3D className="relative w-full rounded-3xl border border-border/80 bg-card/90 p-6 sm:p-8 shadow-2xl backdrop-blur-xl ring-1 ring-border/50">
+          {/* Card Top Action Bar: Desk Service Bell (left) + Culinary SFX Toggle (right) */}
+          <div className="flex items-center justify-between mb-4">
+            <DiningBell onRing={() => setBellRingsCount((c) => c + 1)} />
+            <SoundToggle />
+          </div>
+
           {/* Header */}
-          <div className="mb-8 flex flex-col items-center gap-2 text-center">
+          <div className="mb-6 flex flex-col items-center gap-2 text-center">
             <Link href="/" className="transition-transform hover:scale-105 active:scale-95">
               <Logo size={44} />
             </Link>
@@ -178,58 +207,122 @@ export default function LoginPage() {
           )}
 
           {/* Integrated 2-Column Experience on MD+ */}
-          <div className="grid md:grid-cols-[160px_1fr] gap-6 items-center">
-            {/* Left: Interactive Beverage Gauge & Recipe Flavor Picker */}
+          <div className="grid md:grid-cols-[170px_1fr] gap-6 items-center">
+            {/* Left Column: Interactive Culinary Experience Station */}
             <div className="flex flex-col items-center justify-center p-3 rounded-2xl bg-muted/30 border border-border/50">
-              <BeverageGauge progress={fillProgress} flavor={flavor} />
-
-              {/* Flavor Selector Buttons */}
-              <div className="mt-3 flex items-center gap-1.5 pt-2 border-t border-border/40">
+              {/* Station Switcher Tabs */}
+              <div className="flex items-center justify-center gap-1 mb-2.5 p-0.5 rounded-lg bg-background/80 border border-border/60">
                 <button
                   type="button"
-                  onClick={() => setFlavor("mango")}
-                  title="Golden Mango Mocktail"
+                  onClick={() => setStationTab("mixology")}
+                  title="Mixology Bar"
                   className={cn(
-                    "p-1.5 rounded-lg text-xs transition-all",
-                    flavor === "mango"
-                      ? "bg-amber-500/20 text-amber-500 border border-amber-500/40"
-                      : "text-muted-foreground hover:bg-muted",
+                    "px-2 py-1 rounded-md text-[10px] font-medium transition-all flex items-center gap-1",
+                    stationTab === "mixology"
+                      ? "bg-amber-500 text-white shadow-xs font-semibold"
+                      : "text-muted-foreground hover:text-foreground",
                   )}
                 >
-                  <Citrus className="w-3.5 h-3.5" />
+                  <Wine className="w-3 h-3" />
+                  <span>Drink</span>
                 </button>
                 <button
                   type="button"
-                  onClick={() => setFlavor("coffee")}
-                  title="Cold Brew Coffee"
+                  onClick={() => setStationTab("kitchen")}
+                  title="DotLottie Kitchen Station"
                   className={cn(
-                    "p-1.5 rounded-lg text-xs transition-all",
-                    flavor === "coffee"
-                      ? "bg-amber-900/30 text-amber-700 dark:text-amber-300 border border-amber-800/40"
-                      : "text-muted-foreground hover:bg-muted",
+                    "px-2 py-1 rounded-md text-[10px] font-medium transition-all flex items-center gap-1",
+                    stationTab === "kitchen"
+                      ? "bg-amber-500 text-white shadow-xs font-semibold"
+                      : "text-muted-foreground hover:text-foreground",
                   )}
                 >
-                  <Coffee className="w-3.5 h-3.5" />
+                  <Flame className="w-3 h-3" />
+                  <span>Chef</span>
                 </button>
                 <button
                   type="button"
-                  onClick={() => setFlavor("berry")}
-                  title="Wild Berry Sundae"
+                  onClick={() => setStationTab("3d")}
+                  title="Spline 3D Stage"
                   className={cn(
-                    "p-1.5 rounded-lg text-xs transition-all",
-                    flavor === "berry"
-                      ? "bg-rose-500/20 text-rose-500 border border-rose-500/40"
-                      : "text-muted-foreground hover:bg-muted",
+                    "px-2 py-1 rounded-md text-[10px] font-medium transition-all flex items-center gap-1",
+                    stationTab === "3d"
+                      ? "bg-amber-500 text-white shadow-xs font-semibold"
+                      : "text-muted-foreground hover:text-foreground",
                   )}
                 >
-                  <Sparkles className="w-3.5 h-3.5" />
+                  <Box className="w-3 h-3" />
+                  <span>3D</span>
                 </button>
               </div>
+
+              {/* Station Display */}
+              {stationTab === "mixology" && (
+                <>
+                  <BeverageGauge progress={fillProgress} flavor={flavor} />
+
+                  {/* Flavor Selector Buttons */}
+                  <div className="mt-3 flex items-center gap-1.5 pt-2 border-t border-border/40">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFlavor("mango");
+                        playIceClink();
+                      }}
+                      title="Golden Mango Mocktail"
+                      className={cn(
+                        "p-1.5 rounded-lg text-xs transition-all",
+                        flavor === "mango"
+                          ? "bg-amber-500/20 text-amber-500 border border-amber-500/40"
+                          : "text-muted-foreground hover:bg-muted",
+                      )}
+                    >
+                      <Citrus className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFlavor("coffee");
+                        playIceClink();
+                      }}
+                      title="Cold Brew Coffee"
+                      className={cn(
+                        "p-1.5 rounded-lg text-xs transition-all",
+                        flavor === "coffee"
+                          ? "bg-amber-900/30 text-amber-700 dark:text-amber-300 border border-amber-800/40"
+                          : "text-muted-foreground hover:bg-muted",
+                      )}
+                    >
+                      <Coffee className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFlavor("berry");
+                        playIceClink();
+                      }}
+                      title="Wild Berry Sundae"
+                      className={cn(
+                        "p-1.5 rounded-lg text-xs transition-all",
+                        flavor === "berry"
+                          ? "bg-rose-500/20 text-rose-500 border border-rose-500/40"
+                          : "text-muted-foreground hover:bg-muted",
+                      )}
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {stationTab === "kitchen" && <LottieChefStation progress={fillProgress} />}
+
+              {stationTab === "3d" && <Spline3DStage />}
             </div>
 
-            {/* Right: Login Form */}
+            {/* Right Column: Credentials Form */}
             <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="flex flex-col gap-4">
-              {/* Username Input */}
+              {/* Username Input with Liquid Pour sound feedback */}
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="email" className="text-xs font-medium">
                   Username or Email
@@ -245,7 +338,11 @@ export default function LoginPage() {
                   autoFocus
                   className="h-11 bg-background/60 transition-all focus-visible:ring-primary/40"
                   placeholder="Username or email address"
-                  {...register("email")}
+                  {...emailFieldProps}
+                  onChange={(e) => {
+                    emailFieldProps.onChange(e);
+                    playPour();
+                  }}
                   onFocus={() => setFocusedField("username")}
                   onBlur={() => setFocusedField(null)}
                 />
@@ -254,7 +351,7 @@ export default function LoginPage() {
                 )}
               </div>
 
-              {/* Password Input */}
+              {/* Password Input with Ice Clink sound feedback */}
               <div className="flex flex-col gap-1.5">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="password" className="text-xs font-medium">
@@ -274,7 +371,11 @@ export default function LoginPage() {
                   className="h-11 bg-background/60 transition-all focus-visible:ring-primary/40"
                   placeholder="Your password"
                   onVisibilityChange={(visible) => setIsPasswordVisible(visible)}
-                  {...register("password")}
+                  {...passwordFieldProps}
+                  onChange={(e) => {
+                    passwordFieldProps.onChange(e);
+                    playIceClink();
+                  }}
                   onFocus={() => setFocusedField("password")}
                   onBlur={() => setFocusedField(null)}
                 />
@@ -345,7 +446,7 @@ export default function LoginPage() {
               Hanva POS Enterprise &middot; Authorized Personnel Only
             </p>
           </div>
-        </motion.div>
+        </InteractiveCard3D>
       </div>
     </main>
   );

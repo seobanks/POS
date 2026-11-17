@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
-import { Utensils, Sparkles, Eye, EyeOff } from "lucide-react";
+import { Sparkles, Utensils } from "lucide-react";
+import { useCulinarySound } from "@/components/login/sound-effects";
 
 export type WaiterMood =
   | "idle"
@@ -16,25 +17,56 @@ interface WaiterConciergeProps {
   mood: WaiterMood;
   isPasswordVisible?: boolean;
   charCount?: number;
+  bellRingsCount?: number;
 }
 
 export function WaiterConcierge({
   mood,
   isPasswordVisible = false,
   charCount = 0,
+  bellRingsCount = 0,
 }: WaiterConciergeProps) {
   const prefersReduced = useReducedMotion();
+  const { playWhoosh, playBellRing } = useCulinarySound();
+  const prevVisibleRef = useRef(isPasswordVisible);
+  const prevMoodRef = useRef(mood);
+  const [isWinking, setIsWinking] = useState(false);
+  const [clickedReaction, setClickedReaction] = useState(false);
+
+  // Play napkin rustle / whoosh when password focus changes or visibility toggles
+  useEffect(() => {
+    if (mood === "password" && prevMoodRef.current !== "password") {
+      playWhoosh();
+    }
+    if (prevVisibleRef.current !== isPasswordVisible && mood === "password") {
+      playWhoosh();
+    }
+    prevVisibleRef.current = isPasswordVisible;
+    prevMoodRef.current = mood;
+  }, [mood, isPasswordVisible, playWhoosh]);
+
+  // Periodic natural blink
+  useEffect(() => {
+    if (mood === "password") return;
+    const interval = setInterval(() => {
+      setIsWinking(true);
+      setTimeout(() => setIsWinking(false), 220);
+    }, 4500);
+    return () => clearInterval(interval);
+  }, [mood]);
 
   // Eye gaze direction based on character count when typing username
   const gazeX = useMemo(() => {
     if (mood !== "username") return 0;
-    // Map character count 0..25 to -4px .. 4px
+    // Map character count 0..25 to -4.5px .. 4.5px
     const clamped = Math.min(Math.max(charCount, 0), 25);
-    return (clamped / 25) * 8 - 4;
+    return (clamped / 25) * 9 - 4.5;
   }, [mood, charCount]);
 
   // Speech bubble prompt text
   const speechText = useMemo(() => {
+    if (clickedReaction) return "Yes, Chef! Service is ready. ✨";
+    if (bellRingsCount > 0 && bellRingsCount % 2 === 1) return "Right away, table reserved! 🛎️";
     switch (mood) {
       case "username":
         return "Welcome to service! Enter your staff ID or email.";
@@ -43,16 +75,22 @@ export function WaiterConcierge({
           ? "Peeking at your secret code! 👀"
           : "Discretion guaranteed! Eyes covered. 🙈";
       case "submitting":
-        return "Sending KOT ticket to kitchen…";
+        return "Sending KOT ticket to kitchen… 🍳";
       case "error":
         return "Credentials not found in ledger. Try again!";
       case "success":
-        return "Table ready! Enjoy your service.";
+        return "Table ready! Enjoy your service. 🍷";
       case "idle":
       default:
         return "The Grand Concierge is ready to seat you.";
     }
-  }, [mood, isPasswordVisible]);
+  }, [mood, isPasswordVisible, clickedReaction, bellRingsCount]);
+
+  const handleMascotClick = () => {
+    setClickedReaction(true);
+    playWhoosh();
+    setTimeout(() => setClickedReaction(false), 2000);
+  };
 
   return (
     <div className="relative flex flex-col items-center select-none">
@@ -68,25 +106,37 @@ export function WaiterConcierge({
         <span>{speechText}</span>
       </motion.div>
 
-      {/* Stylized Waiter Character Mascot (SVG) */}
-      <div className="relative w-28 h-28 flex items-center justify-center">
+      {/* Interactive Stylized Waiter Character Mascot (SVG) */}
+      <motion.div
+        whileHover={{ scale: 1.06 }}
+        whileTap={{ scale: 0.96 }}
+        onClick={handleMascotClick}
+        title="Click Maitre D' for a greeting"
+        className="relative w-28 h-28 flex items-center justify-center cursor-pointer group"
+      >
         {/* Ambient Halo Glow */}
-        <div className="absolute inset-2 rounded-full bg-amber-500/10 blur-xl -z-10" />
+        <div className="absolute inset-2 rounded-full bg-amber-500/10 blur-xl -z-10 group-hover:bg-amber-500/20 transition-colors" />
 
         <svg
           viewBox="0 0 120 120"
           className="w-full h-full drop-shadow-md overflow-visible"
         >
-          {/* 1. Waiter Chef Hat (Toque Blanche) */}
+          {/* 1. Waiter Chef Hat (Toque Blanche) with Spring Bob */}
           <motion.g
             animate={
-              mood === "submitting"
-                ? { y: [-2, 2, -2] }
-                : mood === "error"
-                  ? { rotate: [-4, 4, -4] }
-                  : { y: 0 }
+              clickedReaction
+                ? { y: [-6, 2, 0], rotate: [-8, 6, 0] }
+                : mood === "submitting"
+                  ? { y: [-2, 2, -2] }
+                  : mood === "error"
+                    ? { rotate: [-4, 4, -4] }
+                    : { y: 0 }
             }
-            transition={{ duration: 0.6, repeat: Infinity, ease: "easeInOut" }}
+            transition={{
+              duration: clickedReaction ? 0.5 : 0.6,
+              repeat: clickedReaction ? 0 : Infinity,
+              ease: "easeInOut",
+            }}
           >
             {/* Hat Puffs */}
             <path
@@ -139,9 +189,15 @@ export function WaiterConcierge({
                 <circle cx="51" cy="49" r="2.2" className="fill-zinc-900" />
                 <circle cx="69" cy="49" r="2.2" className="fill-zinc-900" />
               </g>
+            ) : isWinking ? (
+              /* Playful blink */
+              <g className="stroke-zinc-800 dark:stroke-zinc-900" strokeWidth="2.2" strokeLinecap="round">
+                <path d="M47 49 Q51 46 55 49" fill="none" />
+                <path d="M65 49 Q69 46 73 49" fill="none" />
+              </g>
             ) : (
               /* Normal Interactive Eyes (following text input horizontally) */
-              <motion.g animate={{ x: gazeX }} transition={{ type: "spring", stiffness: 300, damping: 20 }}>
+              <motion.g animate={{ x: gazeX }} transition={{ type: "spring", stiffness: 350, damping: 20 }}>
                 {/* Left Eye */}
                 <circle cx="51" cy="48" r="4" className="fill-white stroke-zinc-600 dark:stroke-zinc-800" strokeWidth="0.8" />
                 <circle cx="51" cy="48.5" r="2" className="fill-zinc-900" />
@@ -162,7 +218,10 @@ export function WaiterConcierge({
               strokeLinecap="round"
             />
             {/* Small Petite Mustache */}
-            <path
+            <motion.path
+              animate={charCount > 0 ? { rotate: [-2, 2, -2] } : { rotate: 0 }}
+              transition={{ duration: 0.3, repeat: charCount > 0 ? 2 : 0 }}
+              style={{ transformOrigin: "60px 56px" }}
               d="M52 56 Q56 54 60 56 Q64 54 68 56"
               className="fill-none stroke-amber-950 dark:stroke-amber-900"
               strokeWidth="1.8"
@@ -240,28 +299,34 @@ export function WaiterConcierge({
             /* Normal Waiter Arms: Holding silver platter tray on left */
             <g>
               {/* Left Arm holding silver tray */}
-              <path
-                d="M40 76 Q30 84 25 80"
+              <motion.path
+                animate={clickedReaction ? { d: "M40 76 Q30 70 25 65" } : { d: "M40 76 Q30 84 25 80" }}
+                transition={{ type: "spring", stiffness: 400, damping: 15 }}
                 className="fill-none stroke-zinc-900 dark:stroke-zinc-950"
                 strokeWidth="5"
                 strokeLinecap="round"
               />
               {/* Silver Serving Tray / Cloche */}
-              <ellipse
-                cx="22"
-                cy="76"
-                rx="14"
-                ry="3.5"
-                className="fill-zinc-300 dark:fill-zinc-400 stroke-zinc-500"
-                strokeWidth="1"
-              />
-              {/* Golden Cloche Dome */}
-              <path
-                d="M13 75 C13 65, 31 65, 31 75 Z"
-                className="fill-amber-400/90 stroke-amber-600"
-                strokeWidth="1"
-              />
-              <circle cx="22" cy="65" r="1.8" className="fill-amber-600" />
+              <motion.g
+                animate={clickedReaction ? { y: -12 } : { y: 0 }}
+                transition={{ type: "spring", stiffness: 400, damping: 15 }}
+              >
+                <ellipse
+                  cx="22"
+                  cy="76"
+                  rx="14"
+                  ry="3.5"
+                  className="fill-zinc-300 dark:fill-zinc-400 stroke-zinc-500"
+                  strokeWidth="1"
+                />
+                {/* Golden Cloche Dome */}
+                <path
+                  d="M13 75 C13 65, 31 65, 31 75 Z"
+                  className="fill-amber-400/90 stroke-amber-600"
+                  strokeWidth="1"
+                />
+                <circle cx="22" cy="65" r="1.8" className="fill-amber-600" />
+              </motion.g>
 
               {/* Right Arm with Folded White Napkin */}
               <path
@@ -279,7 +344,7 @@ export function WaiterConcierge({
             </g>
           )}
         </svg>
-      </div>
+      </motion.div>
     </div>
   );
 }
