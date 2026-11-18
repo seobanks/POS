@@ -5,7 +5,7 @@ import { motion, useReducedMotion } from "motion/react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import {
   AlertCircle,
@@ -29,6 +29,7 @@ import {
   ReportsAnalyticsIcon,
   SettingsControlIcon,
 } from "@/components/login/login-artwork";
+import { useLoginTransition } from "@/components/providers/login-transition";
 import { isWaiterUser, useCurrentUser, useLogin } from "@/hooks/use-auth";
 import { ApiError } from "@/lib/api";
 import { safeZodResolver } from "@/lib/safe-zod-resolver";
@@ -73,9 +74,20 @@ export default function LoginPage() {
   const router = useRouter();
   const login = useLogin();
   const { data: auth, isSuccess: isAuthenticated } = useCurrentUser();
+  const { isTransitioning, startLoginTransition } = useLoginTransition();
   const prefersReducedMotion = useReducedMotion();
 
+  const submittingRef = useRef(false);
+  const [loginSucceeded, setLoginSucceeded] = useState(false);
+
+  // Warm the destination route bundles so the transition curtain lifts instantaneously
   useEffect(() => {
+    router.prefetch("/dashboard");
+    router.prefetch("/captain");
+  }, [router]);
+
+  useEffect(() => {
+    if (isTransitioning || submittingRef.current || loginSucceeded) return;
     if (isAuthenticated && auth?.user) {
       if (isWaiterUser(auth.user)) {
         router.replace("/captain");
@@ -83,7 +95,7 @@ export default function LoginPage() {
         router.replace("/dashboard");
       }
     }
-  }, [isAuthenticated, auth, router]);
+  }, [isAuthenticated, auth, router, isTransitioning, loginSucceeded]);
 
   const [needsCode, setNeedsCode] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -124,6 +136,7 @@ export default function LoginPage() {
 
   const onSubmit = (dto: LoginDto) => {
     setError(null);
+    submittingRef.current = true;
     try {
       if (rememberMe && dto.email.trim()) {
         localStorage.setItem(REMEMBERED_USER_KEY, dto.email.trim());
@@ -137,9 +150,22 @@ export default function LoginPage() {
     login.mutate(dto, {
       onSuccess: (data) => {
         const isWaiter = isWaiterUser(data?.user);
-        window.location.href = isWaiter ? "/captain" : "/dashboard";
+        const destination = isWaiter ? "/captain" : "/dashboard";
+        setLoginSucceeded(true);
+
+        // Brief beat so the user sees the crisp green checkmark confirmation
+        // before the Hanva portal curtain sweeps smoothly into the dashboard.
+        const curtainDelay = prefersReducedMotion ? 40 : 180;
+        setTimeout(() => {
+          startLoginTransition({
+            userName: data?.user?.name,
+            destination,
+          });
+        }, curtainDelay);
       },
       onError: (err) => {
+        submittingRef.current = false;
+        setLoginSucceeded(false);
         if (err instanceof ApiError && err.message === "TWO_FACTOR_REQUIRED") {
           setNeedsCode(true);
           return;
@@ -164,10 +190,20 @@ export default function LoginPage() {
     }
   };
 
+  const isLeaving = loginSucceeded || isTransitioning;
+
   return (
     <main className="relative min-h-screen w-full overflow-x-hidden bg-[#1a120c] flex items-center justify-center">
       {/* Full-bleed Photorealistic Restaurant & POS Counter Background */}
-      <div className="pointer-events-none fixed inset-0 z-0 select-none">
+      <motion.div
+        animate={
+          isLeaving && !prefersReducedMotion
+            ? { scale: 1.07, filter: "blur(2px)" }
+            : { scale: 1, filter: "blur(0px)" }
+        }
+        transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
+        className="pointer-events-none fixed inset-0 z-0 select-none"
+      >
         <Image
           src="/login-bg.jpg"
           alt="Modern restaurant service counter with touchscreen POS terminal and receipt printer"
@@ -192,13 +228,19 @@ export default function LoginPage() {
               "linear-gradient(180deg, rgba(15, 9, 5, 0.44) 0%, rgba(15, 9, 5, 0.12) 65%, rgba(15, 9, 5, 0) 100%)",
           }}
         />
-      </div>
+      </motion.div>
 
       {/* Main Two-Column Content Grid */}
       <div className="relative z-10 w-full max-w-[1380px] mx-auto px-4 sm:px-8 lg:px-12 py-5 lg:py-6 grid lg:grid-cols-[1.15fr_0.85fr] gap-8 lg:gap-10 items-center min-h-[min(100vh,860px)]">
         {/* LEFT SHOWCASE PANEL (Desktop & Large Tablets) */}
-        <section
+        <motion.section
           aria-label="Hanva Restaurant Billing Software Overview"
+          animate={
+            isLeaving && !prefersReducedMotion
+              ? { opacity: 0, x: -36 }
+              : { opacity: 1, x: 0 }
+          }
+          transition={{ duration: 0.38, ease: [0.22, 1, 0.36, 1] }}
           className="hidden lg:flex flex-col justify-start self-stretch pt-0 pb-[38vh] xl:pb-[40vh]"
         >
           {/* Top Brand Lockup */}
@@ -272,14 +314,18 @@ export default function LoginPage() {
               );
             })}
           </motion.div>
-        </section>
+        </motion.section>
 
         {/* RIGHT FLOATING WHITE LOGIN CARD */}
         <section className="w-full flex items-center justify-center lg:justify-end">
           <motion.div
             initial={prefersReducedMotion ? false : { opacity: 0, y: 18, scale: 0.985 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+            animate={
+              isLeaving && !prefersReducedMotion
+                ? { opacity: 1, y: -4, scale: 1.025 }
+                : { opacity: 1, y: 0, scale: 1 }
+            }
+            transition={{ duration: isLeaving ? 0.32 : 0.45, ease: [0.22, 1, 0.36, 1] }}
             className="relative w-full max-w-[450px] xl:max-w-[480px] rounded-[28px] bg-gradient-to-b from-white via-[#F9FCFF] to-[#ECF4FF] text-slate-900 shadow-[0_28px_80px_-14px_rgba(0,0,0,0.62)] border border-white/90 overflow-hidden"
           >
             {/* Subtle top-right ambient blue radial sheen inside card */}
@@ -528,10 +574,20 @@ export default function LoginPage() {
                 {/* Primary Login Button */}
                 <button
                   type="submit"
-                  disabled={login.isPending}
-                  className="mt-1.5 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#1976D2] via-[#1565C0] to-[#0E4DA4] px-5 text-[15px] font-semibold text-white shadow-[0_10px_24px_-6px_rgba(21,101,192,0.58)] transition-all duration-200 hover:brightness-105 hover:shadow-[0_14px_28px_-6px_rgba(21,101,192,0.65)] active:scale-[0.99] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1565C0]/30 disabled:opacity-70 disabled:pointer-events-none cursor-pointer"
+                  disabled={login.isPending || isLeaving}
+                  className={cn(
+                    "mt-1.5 flex h-12 w-full items-center justify-center gap-2 rounded-xl px-5 text-[15px] font-semibold text-white transition-all duration-200 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-4 disabled:pointer-events-none cursor-pointer",
+                    loginSucceeded
+                      ? "bg-gradient-to-r from-emerald-500 to-teal-600 shadow-[0_10px_24px_-6px_rgba(16,185,129,0.6)] focus-visible:ring-emerald-500/30"
+                      : "bg-gradient-to-r from-[#1976D2] via-[#1565C0] to-[#0E4DA4] shadow-[0_10px_24px_-6px_rgba(21,101,192,0.58)] hover:brightness-105 hover:shadow-[0_14px_28px_-6px_rgba(21,101,192,0.65)] focus-visible:ring-[#1565C0]/30 disabled:opacity-75",
+                  )}
                 >
-                  {login.isPending ? (
+                  {loginSucceeded ? (
+                    <>
+                      <Check className="h-[19px] w-[19px] stroke-[2.8]" />
+                      <span>Welcome! Entering…</span>
+                    </>
+                  ) : login.isPending ? (
                     <>
                       <Loader2 className="h-[18px] w-[18px] animate-spin" />
                       <span>Signing in…</span>

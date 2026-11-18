@@ -5,6 +5,7 @@ import { ThemeProvider } from "next-themes";
 import { useEffect, useState } from "react";
 import { I18nProvider } from "@/lib/i18n/context";
 import { Toaster } from "@/components/ui/sonner";
+import { LoginTransitionProvider } from "@/components/providers/login-transition";
 
 export function AppProviders({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -51,7 +52,9 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
       <I18nProvider>
         <QueryClientProvider client={queryClient}>
-          {children}
+          <LoginTransitionProvider>
+            {children}
+          </LoginTransitionProvider>
           <Toaster />
         </QueryClientProvider>
       </I18nProvider>
