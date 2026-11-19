@@ -19,6 +19,9 @@ export const ingredientSchema = z.object({
   unit: ingredientUnitSchema,
   reorderLevel: z.coerce.number().nonnegative().default(0),
   isActive: z.boolean().default(true),
+  initialStock: z.coerce.number().nonnegative().optional(),
+  costPrice: z.coerce.number().nonnegative().optional(),
+  linkMenuItemId: z.string().optional(),
 });
 export type IngredientDto = z.infer<typeof ingredientSchema>;
 

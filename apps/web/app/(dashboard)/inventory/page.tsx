@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { AddIngredientDialog } from "@/components/inventory/add-ingredient-dialog";
 import { AdjustStockDialog } from "@/components/inventory/adjust-stock-dialog";
@@ -78,7 +78,8 @@ export default function InventoryPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Ingredient</TableHead>
+                <TableHead>Product / Ingredient</TableHead>
+                <TableHead>POS Menu Link</TableHead>
                 <TableHead>Unit</TableHead>
                 <TableHead className="text-right">Current stock</TableHead>
                 <TableHead className="text-right">Reorder level</TableHead>
@@ -90,21 +91,42 @@ export default function InventoryPage() {
             <TableBody>
               {filtered.map((i) => {
                 const isLow = Number(i.currentStock) <= Number(i.reorderLevel);
+                const hasMenuLink = i.directMenuItems && i.directMenuItems.length > 0;
                 return (
                   <TableRow key={i.id}>
                     <TableCell className="font-medium text-foreground">
                       <div className="flex items-center gap-2">
-                        {i.name}
+                        <span>{i.name}</span>
                         {isLow && (
-                          <Badge variant="destructive" className="gap-1">
+                          <Badge variant="destructive" className="gap-1 text-[10px] py-0 px-1.5">
                             <AlertTriangle className="h-3 w-3" />
                             Low stock
                           </Badge>
                         )}
                       </div>
                     </TableCell>
+                    <TableCell>
+                      {hasMenuLink ? (
+                        <div className="flex flex-col gap-0.5">
+                          <Badge
+                            variant="outline"
+                            className="gap-1 w-fit bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 text-[11px] font-medium"
+                          >
+                            <Sparkles className="h-3 w-3" />
+                            Auto-deduct on sale
+                          </Badge>
+                          <span className="text-[11px] text-muted-foreground truncate max-w-[200px]" title={i.directMenuItems?.map((m) => m.name).join(", ")}>
+                            Menu: {i.directMenuItems?.map((m) => m.name).join(", ")}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">Raw Material / Recipe</span>
+                      )}
+                    </TableCell>
                     <TableCell className="text-muted-foreground">{i.unit}</TableCell>
-                    <TableCell className="text-right tabular-nums">{i.currentStock}</TableCell>
+                    <TableCell className={`text-right tabular-nums font-medium ${Number(i.currentStock) <= 0 ? "text-destructive font-semibold" : ""}`}>
+                      {i.currentStock}
+                    </TableCell>
                     <TableCell className="text-right tabular-nums text-muted-foreground">
                       {i.reorderLevel}
                     </TableCell>

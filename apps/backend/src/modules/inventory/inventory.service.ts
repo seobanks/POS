@@ -29,6 +29,11 @@ export class InventoryService {
   listIngredients(branchId: string) {
     return this.prisma.ingredient.findMany({
       where: { branchId },
+      include: {
+        directMenuItems: {
+          select: { id: true, name: true, price: true, shortCode: true },
+        },
+      },
       orderBy: { name: 'asc' },
     });
   }
@@ -36,13 +41,103 @@ export class InventoryService {
   async getIngredient(branchId: string, id: string) {
     const ingredient = await this.prisma.ingredient.findFirst({
       where: { id, branchId },
+      include: {
+        directMenuItems: {
+          select: { id: true, name: true, price: true, shortCode: true },
+        },
+      },
     });
     if (!ingredient) throw new NotFoundException('Ingredient not found');
     return ingredient;
   }
 
-  createIngredient(branchId: string, dto: IngredientDto) {
-    return this.prisma.ingredient.create({ data: { ...dto, branchId } });
+  async createIngredient(
+    branchId: string,
+    dto: IngredientDto,
+    userId?: string,
+  ) {
+    const { initialStock, costPrice, linkMenuItemId, ...rest } = dto;
+
+    if (linkMenuItemId) {
+      const menuItem = await this.prisma.menuItem.findFirst({
+        where: { id: linkMenuItemId, branchId },
+      });
+      if (!menuItem) throw new NotFoundException('Selected menu item not found');
+    }
+
+    const startingStock = initialStock && initialStock > 0 ? initialStock : 0;
+    const unitCost = costPrice && costPrice >= 0 ? costPrice : 0;
+
+    return this.prisma.$transaction(async (tx) => {
+      const created = await tx.ingredient.create({
+        data: {
+          ...rest,
+          branchId,
+          currentStock: startingStock,
+          costPerUnit: unitCost,
+        },
+      });
+
+      if (startingStock > 0) {
+        const batch = await tx.stockBatch.create({
+          data: {
+            branchId,
+            ingredientId: created.id,
+            batchNumber: `INIT-${Date.now().toString().slice(-6)}`,
+            quantityReceived: startingStock,
+            quantityRemaining: startingStock,
+            unitCost,
+            receivedAt: new Date(),
+          },
+        });
+
+        let effectiveUserId = userId;
+        if (!effectiveUserId) {
+          const firstUser = await tx.user.findFirst({
+            where: { restaurant: { branches: { some: { id: branchId } } } },
+            select: { id: true },
+          });
+          effectiveUserId = firstUser?.id;
+        }
+
+        if (effectiveUserId) {
+          await tx.stockMovement.create({
+            data: {
+              branchId,
+              ingredientId: created.id,
+              batchId: batch.id,
+              type: 'ADJUSTMENT',
+              quantity: startingStock,
+              note: linkMenuItemId
+                ? 'Opening stock (direct menu product link)'
+                : 'Opening stock balance',
+              createdById: effectiveUserId,
+            },
+          });
+        }
+      }
+
+      if (linkMenuItemId) {
+        await tx.menuItem.update({
+          where: { id: linkMenuItemId },
+          data: {
+            inventoryTracking: 'DIRECT',
+            stockIngredientId: created.id,
+            stockQuantityPerSale: 1,
+            ...(costPrice !== undefined ? { costPrice } : {}),
+          },
+        });
+      }
+
+      return tx.ingredient.findUnique({
+        where: { id: created.id },
+        include: {
+          directMenuItems: {
+            select: { id: true, name: true, price: true, shortCode: true },
+          },
+        },
+      });
+    });
   }
 
   async updateIngredient(
@@ -51,7 +146,72 @@ export class InventoryService {
     dto: Partial<IngredientDto>,
   ) {
     await this.getIngredient(branchId, id);
-    return this.prisma.ingredient.update({ where: { id }, data: dto });
+    const { linkMenuItemId, initialStock: _initialStock, costPrice, ...rest } = dto;
+
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.ingredient.update({
+        where: { id },
+        data: {
+          ...rest,
+          ...(costPrice !== undefined ? { costPerUnit: costPrice } : {}),
+        },
+        include: {
+          directMenuItems: {
+            select: { id: true, name: true, price: true, shortCode: true },
+          },
+        },
+      });
+
+      if (linkMenuItemId) {
+        await tx.menuItem.update({
+          where: { id: linkMenuItemId },
+          data: {
+            inventoryTracking: 'DIRECT',
+            stockIngredientId: id,
+            stockQuantityPerSale: 1,
+            ...(costPrice !== undefined ? { costPrice } : {}),
+          },
+        });
+      }
+
+      return updated;
+    });
+  }
+
+  async linkMenuItem(branchId: string, ingredientId: string, menuItemId: string) {
+    await this.getIngredient(branchId, ingredientId);
+    const menuItem = await this.prisma.menuItem.findFirst({
+      where: { id: menuItemId, branchId },
+    });
+    if (!menuItem) throw new NotFoundException('Menu item not found');
+
+    await this.prisma.menuItem.update({
+      where: { id: menuItemId },
+      data: {
+        inventoryTracking: 'DIRECT',
+        stockIngredientId: ingredientId,
+        stockQuantityPerSale: 1,
+      },
+    });
+
+    return { ok: true };
+  }
+
+  async unlinkMenuItem(branchId: string, menuItemId: string) {
+    const menuItem = await this.prisma.menuItem.findFirst({
+      where: { id: menuItemId, branchId },
+    });
+    if (!menuItem) throw new NotFoundException('Menu item not found');
+
+    await this.prisma.menuItem.update({
+      where: { id: menuItemId },
+      data: {
+        inventoryTracking: 'NONE',
+        stockIngredientId: null,
+      },
+    });
+
+    return { ok: true };
   }
 
   async deleteIngredient(branchId: string, id: string) {
@@ -275,12 +435,15 @@ export class InventoryService {
     userId: string,
     orderId: string,
     lines: { menuItemId: string; quantity: number }[],
+    options?: { allowAdditional?: boolean; note?: string },
   ): Promise<{ skipped: StockPlan['skipped'] }> {
     if (lines.length === 0) return { skipped: [] };
-    const already = await tx.stockMovement.count({
-      where: { orderId, type: 'CONSUMPTION' },
-    });
-    if (already > 0) return { skipped: [] };
+    if (!options?.allowAdditional) {
+      const already = await tx.stockMovement.count({
+        where: { orderId, type: 'CONSUMPTION' },
+      });
+      if (already > 0) return { skipped: [] };
+    }
 
     const plan = await this.planFor(tx, lines);
     for (const [ingredientId, quantity] of plan.needs) {
@@ -292,7 +455,7 @@ export class InventoryService {
         quantity,
         {
           type: 'CONSUMPTION',
-          note: 'Order checkout',
+          note: options?.note || 'Order sale deduction',
           userId,
           allowNegative: true,
           orderId,
@@ -311,6 +474,7 @@ export class InventoryService {
     userId: string,
     orderId: string,
     lines: { menuItemId: string; quantity: number }[],
+    note = 'Returned with refund',
   ): Promise<{ restored: number }> {
     const plan = await this.planFor(tx, lines);
     let restored = 0;
@@ -320,7 +484,7 @@ export class InventoryService {
         branchId,
         ingredientId,
         quantity,
-        { userId, orderId, note: 'Returned with refund' },
+        { userId, orderId, note },
       );
     }
     return { restored };
@@ -341,22 +505,61 @@ export class InventoryService {
       where: { id: { in: allIds } },
       include: { recipeLines: true },
     });
+
+    const branchId = rows[0]?.branchId;
+    let fallbackIngredients: Map<string, string> | null = null;
+    if (branchId) {
+      const needsMatch = rows.filter(
+        (m) =>
+          !m.isCombo &&
+          ((m.inventoryTracking === 'NONE' && !m.stockIngredientId && m.recipeLines.length === 0) ||
+            (m.inventoryTracking === 'DIRECT' && !m.stockIngredientId)),
+      );
+      if (needsMatch.length > 0) {
+        const ingredients = await tx.ingredient.findMany({
+          where: { branchId, isActive: true },
+          select: { id: true, name: true },
+        });
+        fallbackIngredients = new Map(
+          ingredients.map((ing) => [ing.name.toLowerCase().trim(), ing.id]),
+        );
+      }
+    }
+
     const items = new Map<string, PlanItem>(
-      rows.map((m) => [
-        m.id,
-        {
-          id: m.id,
-          name: m.name,
-          isCombo: m.isCombo,
-          tracking: m.inventoryTracking,
-          stockIngredientId: m.stockIngredientId,
-          stockQuantityPerSale: Number(m.stockQuantityPerSale),
-          recipe: m.recipeLines.map((l) => ({
-            ingredientId: l.ingredientId,
-            quantity: Number(l.quantity),
-          })),
-        },
-      ]),
+      rows.map((m) => {
+        let tracking = m.inventoryTracking;
+        let stockIngredientId = m.stockIngredientId;
+        const stockQuantityPerSale = Number(m.stockQuantityPerSale) || 1;
+
+        if (tracking === 'NONE' && stockIngredientId) {
+          tracking = 'DIRECT';
+        } else if (tracking === 'NONE' && m.recipeLines.length > 0) {
+          tracking = 'RECIPE';
+        } else if (!m.isCombo && (!stockIngredientId || tracking === 'NONE') && fallbackIngredients) {
+          const matchId = fallbackIngredients.get(m.name.toLowerCase().trim());
+          if (matchId) {
+            tracking = 'DIRECT';
+            stockIngredientId = matchId;
+          }
+        }
+
+        return [
+          m.id,
+          {
+            id: m.id,
+            name: m.name,
+            isCombo: m.isCombo,
+            tracking,
+            stockIngredientId,
+            stockQuantityPerSale,
+            recipe: m.recipeLines.map((l) => ({
+              ingredientId: l.ingredientId,
+              quantity: Number(l.quantity),
+            })),
+          },
+        ];
+      }),
     );
     return planStockUsage(lines, items, combos);
   }

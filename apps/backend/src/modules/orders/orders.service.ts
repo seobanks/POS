@@ -429,6 +429,17 @@ export class OrdersService {
       // the kitchen shortly before its time.
       if (acceptance !== 'PENDING' && !this.isDeferred(scheduledFor)) {
         await this.generateKots(tx, created.id, branchId, created.items);
+        await this.inventory.deductForOrder(
+          tx,
+          branchId,
+          userId,
+          created.id,
+          created.items.map((item) => ({
+            menuItemId: item.menuItemId,
+            quantity: item.quantity,
+          })),
+          { note: `Order #${created.orderNumber} placed` },
+        );
       }
 
       return created;
@@ -723,24 +734,23 @@ export class OrdersService {
             }
           }
 
-          // Deduct stock if paid
-          if (hasPayments) {
-            try {
-              await this.inventory.deductForOrder(
-                tx,
-                branchId,
-                userId,
-                created.id,
-                created.items.map((item) => ({
-                  menuItemId: item.menuItemId,
-                  quantity: item.quantity,
-                })),
-              );
-            } catch (invErr) {
-              this.logger.warn(
-                `Failed to deduct stock for synced paid order ${created.id}: ${invErr}`,
-              );
-            }
+          // Deduct stock for synced order
+          try {
+            await this.inventory.deductForOrder(
+              tx,
+              branchId,
+              userId,
+              created.id,
+              created.items.map((item) => ({
+                menuItemId: item.menuItemId,
+                quantity: item.quantity,
+              })),
+              { note: `Offline order #${created.orderNumber} synced` },
+            );
+          } catch (invErr) {
+            this.logger.warn(
+              `Failed to deduct stock for synced order ${created.id}: ${invErr}`,
+            );
           }
 
           return created;
@@ -888,6 +898,21 @@ export class OrdersService {
       });
 
       await this.generateKots(tx, orderId, branchId, newItems);
+
+      await this.inventory.deductForOrder(
+        tx,
+        branchId,
+        order.createdById,
+        orderId,
+        newItems.map((item) => ({
+          menuItemId: item.menuItemId,
+          quantity: item.quantity,
+        })),
+        {
+          allowAdditional: true,
+          note: `Order #${order.orderNumber} items added`,
+        },
+      );
 
       return result;
     });
@@ -1122,6 +1147,17 @@ export class OrdersService {
       }
       if (!this.isDeferred(order.scheduledFor ?? undefined)) {
         await this.generateKots(tx, orderId, branchId, order.items);
+        await this.inventory.deductForOrder(
+          tx,
+          branchId,
+          userId,
+          orderId,
+          order.items.map((item) => ({
+            menuItemId: item.menuItemId,
+            quantity: item.quantity,
+          })),
+          { note: `Order #${order.orderNumber} accepted` },
+        );
       }
     });
     this.realtime.emitToBranch(branchId, 'order.updated', {
@@ -1319,7 +1355,7 @@ export class OrdersService {
     const reason = options.reason?.trim() || undefined;
     const order = await this.prisma.order.findFirst({
       where: { id: orderId, branchId },
-      include: { kots: true, payments: true },
+      include: { kots: true, payments: true, items: true },
     });
     if (!order) throw new NotFoundException('Order not found');
     if (options.declineIncoming) {
@@ -1397,6 +1433,24 @@ export class OrdersService {
         },
         data: { status: 'CANCELLED' },
       });
+      if (!alreadyStarted && order.items && order.items.length > 0) {
+        const consumptions = await tx.stockMovement.count({
+          where: { orderId, type: 'CONSUMPTION' },
+        });
+        if (consumptions > 0) {
+          await this.inventory.restoreForReturn(
+            tx,
+            branchId,
+            userId,
+            orderId,
+            order.items.map((item) => ({
+              menuItemId: item.menuItemId,
+              quantity: item.quantity,
+            })),
+            `Order #${order.orderNumber} cancelled`,
+          );
+        }
+      }
       await this.releaseTableIfIdle(tx, order.tableId, orderId);
     });
 

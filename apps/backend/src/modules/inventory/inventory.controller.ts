@@ -99,7 +99,11 @@ export class InventoryController {
     @Body() body: unknown,
   ) {
     await this.branchAccess.assertAccess(user.restaurantId, branchId);
-    return this.inventoryService.createIngredient(branchId, body as never);
+    return this.inventoryService.createIngredient(
+      branchId,
+      body as never,
+      user.id,
+    );
   }
 
   @Auth('inventory.manage')
@@ -112,6 +116,29 @@ export class InventoryController {
   ) {
     await this.branchAccess.assertAccess(user.restaurantId, branchId);
     return this.inventoryService.updateIngredient(branchId, id, body as never);
+  }
+
+  @Auth('inventory.manage')
+  @Post('ingredients/:id/link-menu-item')
+  async linkMenuItem(
+    @CurrentUser() user: SessionUser,
+    @Query('branchId') branchId: string,
+    @Param('id') id: string,
+    @Body('menuItemId') menuItemId: string,
+  ) {
+    await this.branchAccess.assertAccess(user.restaurantId, branchId);
+    return this.inventoryService.linkMenuItem(branchId, id, menuItemId);
+  }
+
+  @Auth('inventory.manage')
+  @Post('menu-items/:menuItemId/unlink')
+  async unlinkMenuItem(
+    @CurrentUser() user: SessionUser,
+    @Query('branchId') branchId: string,
+    @Param('menuItemId') menuItemId: string,
+  ) {
+    await this.branchAccess.assertAccess(user.restaurantId, branchId);
+    return this.inventoryService.unlinkMenuItem(branchId, menuItemId);
   }
 
   @Auth('inventory.manage')

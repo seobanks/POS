@@ -29,6 +29,12 @@ export interface Ingredient {
   currentStock: string;
   costPerUnit: string;
   isActive: boolean;
+  directMenuItems?: {
+    id: string;
+    name: string;
+    price: string;
+    shortCode?: string | null;
+  }[];
 }
 
 export interface Supplier {
@@ -231,6 +237,30 @@ export function useAdjustStock(branchId: string | null) {
     mutationFn: ({ id, dto }: { id: string; dto: StockAdjustmentDto }) =>
       api.post(`/inventory/ingredients/${id}/adjust?branchId=${branchId}`, dto),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["inventory", "ingredients", branchId] }),
+  });
+}
+
+export function useLinkMenuItem(branchId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ ingredientId, menuItemId }: { ingredientId: string; menuItemId: string }) =>
+      api.post(`/inventory/ingredients/${ingredientId}/link-menu-item?branchId=${branchId}`, { menuItemId }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["inventory", "ingredients", branchId] });
+      qc.invalidateQueries({ queryKey: ["menu", "items", branchId] });
+    },
+  });
+}
+
+export function useUnlinkMenuItem(branchId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (menuItemId: string) =>
+      api.post(`/inventory/menu-items/${menuItemId}/unlink?branchId=${branchId}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["inventory", "ingredients", branchId] });
+      qc.invalidateQueries({ queryKey: ["menu", "items", branchId] });
+    },
   });
 }
 
