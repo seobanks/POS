@@ -66,7 +66,7 @@ export function useDashboardSummary(branchId: string | null) {
     queryKey: ["dashboard", "summary", branchId],
     queryFn: () => api.get<DashboardSummary>(`/dashboard/summary?branchId=${branchId}`),
     enabled: !!branchId,
-    refetchInterval: 15_000,
+    refetchInterval: 45_000,
   });
 }
 

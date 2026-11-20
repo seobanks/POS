@@ -638,6 +638,7 @@ model Ingredient {
 
   @@unique([branchId, name])
   @@index([branchId])
+  @@index([branchId, isActive])
   @@map("ingredients")
 }
 
@@ -1103,6 +1104,7 @@ model MenuItem {
   recipeLines     RecipeIngredient[]
 
   @@index([branchId, categoryId])
+  @@index([branchId, isActive, sortOrder])
   @@map("menu_items")
 }
 
@@ -1380,6 +1382,8 @@ model Order {
   @@unique([branchId, orderNumber])
   @@unique([branchId, clientRequestId])
   @@index([branchId, status])
+  @@index([branchId, status, billedAt])
+  @@index([branchId, createdAt])
   @@index([branchId, deliveryStatus])
   @@map("orders")
 }
@@ -1407,6 +1411,7 @@ model OrderItem {
   stockReturns OrderItemStockReturn[]
 
   @@index([orderId])
+  @@index([menuItemId])
   @@map("order_items")
 }
 

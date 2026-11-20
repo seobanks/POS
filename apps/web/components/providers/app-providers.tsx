@@ -12,7 +12,12 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
     () =>
       new QueryClient({
         defaultOptions: {
-          queries: { staleTime: 10_000, retry: 1 },
+          queries: {
+            staleTime: 60_000,
+            gcTime: 1000 * 60 * 30,
+            refetchOnWindowFocus: false,
+            retry: 1,
+          },
         },
       }),
   );

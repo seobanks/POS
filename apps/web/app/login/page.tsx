@@ -209,7 +209,7 @@ export default function LoginPage() {
           alt="Modern restaurant service counter with touchscreen POS terminal and receipt printer"
           fill
           priority
-          unoptimized
+          sizes="100vw"
           className="object-cover object-left-bottom lg:object-center scale-[1.01]"
         />
         {/* Sculpted readability gradient: warm dark-wood tint top-left for crisp white text while keeping pendant lights & POS vivid */}

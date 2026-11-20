@@ -30,6 +30,7 @@ export function BranchProvider({ children }: { children: React.ReactNode }) {
   const { data: branches, isLoading, isPending, isError, error, refetch, isFetching } = useQuery({
     queryKey: ["branches"],
     queryFn: () => api.get<Branch[]>("/branches"),
+    staleTime: 5 * 60 * 1000,
   });
 
   // Lazy initializer runs once on mount (a legitimate one-time read of an

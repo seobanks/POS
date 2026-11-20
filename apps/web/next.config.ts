@@ -10,6 +10,16 @@ const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:4001";
 
 const nextConfig: NextConfig = {
   ...(process.env.VERCEL ? {} : { output: "standalone" }),
+  compress: true,
+  poweredByHeader: false,
+  experimental: {
+    optimizePackageImports: [
+      "lucide-react",
+      "recharts",
+      "@base-ui/react",
+      "motion",
+    ],
+  },
   env: {
     NEXT_PUBLIC_IS_VERCEL: process.env.VERCEL ? "1" : "0",
   },

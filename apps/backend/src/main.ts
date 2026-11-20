@@ -8,6 +8,7 @@ import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
+import compression from 'compression';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module.js';
 
@@ -152,6 +153,7 @@ async function bootstrap(): Promise<NestExpressApplication> {
   process.env.JWT_SECRET = resolveJwtSecret();
   const app: NestExpressApplication = await NestFactory.create(AppModule);
 
+  app.use(compression());
   app.use(
     helmet({
       crossOriginResourcePolicy: { policy: 'cross-origin' },
