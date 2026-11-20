@@ -17,7 +17,8 @@ export async function sendToBranchPrinter(
   branch: BranchPrinterTarget,
   buffer: Buffer,
 ): Promise<void> {
-  const connection = branch.printerTransport || branch.printerConnection || 'USB';
+  const connection =
+    branch.printerTransport || branch.printerConnection || 'USB';
   const host = branch.printerIp || branch.printerHost;
   const port = branch.printerPort || 9100;
 
@@ -27,15 +28,9 @@ export async function sendToBranchPrinter(
         'Network printing is selected but no printer address is set - add it in Settings > Printer',
       );
     }
-    return sendViaNetwork(
-      { host, port },
-      buffer,
-    );
+    return sendViaNetwork({ host, port }, buffer);
   }
-  if (
-    connection === 'WINDOWS' ||
-    connection === 'SPOOLER'
-  ) {
+  if (connection === 'WINDOWS' || connection === 'SPOOLER') {
     const res = await printToWindowsSpooler(branch.printerName || host, buffer);
     if (!res.success) {
       throw new PrinterNotFoundError(

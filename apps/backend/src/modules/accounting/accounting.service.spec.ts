@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call */
 import { AccountingService } from './accounting.service';
 
 // Guards the bug where report windows were cut at UTC midnight instead of
@@ -55,7 +54,11 @@ describe('AccountingService day windows', () => {
             tipAmount: 50,
             guestCount: 3,
             items: [
-              { quantity: 2, unitPriceSnapshot: 500, menuItem: { category: { name: 'Mains' } } },
+              {
+                quantity: 2,
+                unitPriceSnapshot: 500,
+                menuItem: { category: { name: 'Mains' } },
+              },
             ],
           },
         ]),
@@ -70,9 +73,11 @@ describe('AccountingService day windows', () => {
         findMany: jest.fn().mockResolvedValue([]),
       },
       expense: {
-        findMany: jest.fn().mockResolvedValue([
-          { category: 'Supplies', amount: 150, paidFromCash: true },
-        ]),
+        findMany: jest
+          .fn()
+          .mockResolvedValue([
+            { category: 'Supplies', amount: 150, paidFromCash: true },
+          ]),
       },
     };
     const time = { tzForBranch: jest.fn().mockResolvedValue('Asia/Kolkata') };

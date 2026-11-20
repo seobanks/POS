@@ -34,27 +34,43 @@ describe('StockDepletionService', () => {
     };
 
     service = new StockDepletionService(
-      mockPrisma as any,
-      mockStockService as any,
-      mockRealtime as any,
+      mockPrisma,
+      mockStockService,
+      mockRealtime,
     );
   });
 
   it('returns early when order has no items', async () => {
     mockPrisma.order.findFirst.mockResolvedValue({ id: 'order-1', items: [] });
 
-    const result = await service.depleteOrderStock('order-1', 'branch-1', 'user-1');
+    const result = await service.depleteOrderStock(
+      'order-1',
+      'branch-1',
+      'user-1',
+    );
 
-    expect(result).toEqual({ success: true, depletedIngredients: 0, costOfGoods: 0 });
+    expect(result).toEqual({
+      success: true,
+      depletedIngredients: 0,
+      costOfGoods: 0,
+    });
     expect(mockStockService.consumeStock).not.toHaveBeenCalled();
   });
 
   it('returns early when order does not exist', async () => {
     mockPrisma.order.findFirst.mockResolvedValue(null);
 
-    const result = await service.depleteOrderStock('order-1', 'branch-1', 'user-1');
+    const result = await service.depleteOrderStock(
+      'order-1',
+      'branch-1',
+      'user-1',
+    );
 
-    expect(result).toEqual({ success: true, depletedIngredients: 0, costOfGoods: 0 });
+    expect(result).toEqual({
+      success: true,
+      depletedIngredients: 0,
+      costOfGoods: 0,
+    });
     expect(mockStockService.consumeStock).not.toHaveBeenCalled();
   });
 
@@ -65,9 +81,17 @@ describe('StockDepletionService', () => {
     });
     mockPrisma.recipeIngredient.findMany.mockResolvedValue([]);
 
-    const result = await service.depleteOrderStock('order-1', 'branch-1', 'user-1');
+    const result = await service.depleteOrderStock(
+      'order-1',
+      'branch-1',
+      'user-1',
+    );
 
-    expect(result).toEqual({ success: true, depletedIngredients: 0, costOfGoods: 0 });
+    expect(result).toEqual({
+      success: true,
+      depletedIngredients: 0,
+      costOfGoods: 0,
+    });
     expect(mockStockService.consumeStock).not.toHaveBeenCalled();
   });
 
@@ -120,7 +144,11 @@ describe('StockDepletionService', () => {
       currentStock: 8.75,
     });
 
-    const result = await service.depleteOrderStock('order-1', 'branch-1', 'user-1');
+    const result = await service.depleteOrderStock(
+      'order-1',
+      'branch-1',
+      'user-1',
+    );
 
     expect(result).toEqual({
       success: true,
@@ -184,7 +212,11 @@ describe('StockDepletionService', () => {
       currentStock: 2,
     });
 
-    const result = await service.depleteOrderStock('order-2', 'branch-1', 'user-1');
+    const result = await service.depleteOrderStock(
+      'order-2',
+      'branch-1',
+      'user-1',
+    );
 
     expect(result).toEqual({
       success: true,
@@ -217,7 +249,11 @@ describe('StockDepletionService', () => {
   it('gracefully catches errors and does not throw', async () => {
     mockPrisma.order.findFirst.mockRejectedValue(new Error('Database offline'));
 
-    const result = await service.depleteOrderStock('order-err', 'branch-1', 'user-1');
+    const result = await service.depleteOrderStock(
+      'order-err',
+      'branch-1',
+      'user-1',
+    );
 
     expect(result).toEqual({
       success: false,

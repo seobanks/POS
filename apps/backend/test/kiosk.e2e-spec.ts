@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument -- supertest bodies and jest mock calls are untyped by design */
 // Kiosk end-to-end API test against a REAL, migrated + seeded Postgres.
 // Opt-in so a plain `npm run test:e2e` never needs a database:
 //   KIOSK_E2E=1 DATABASE_URL=... JWT_SECRET=x npx prisma migrate deploy &&

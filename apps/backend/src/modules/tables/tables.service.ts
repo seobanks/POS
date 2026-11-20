@@ -155,7 +155,9 @@ export class TablesService {
               cancelReason: 'Table status manually reset to Available',
             },
           });
-          this.realtime.emitToBranch(branchId, 'order.cancelled', { id: open.id });
+          this.realtime.emitToBranch(branchId, 'order.cancelled', {
+            id: open.id,
+          });
         } else {
           throw new ConflictException(
             `This table has an open bill (#${open.orderNumber}) - pay or cancel it first`,

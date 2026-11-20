@@ -6,7 +6,12 @@ describe('DashboardService - Shift-wise Business', () => {
   let service: DashboardService;
   let prisma: {
     branch: { findUnique: jest.Mock };
-    order: { aggregate: jest.Mock; count: jest.Mock; groupBy: jest.Mock; findMany: jest.Mock };
+    order: {
+      aggregate: jest.Mock;
+      count: jest.Mock;
+      groupBy: jest.Mock;
+      findMany: jest.Mock;
+    };
     table: { groupBy: jest.Mock };
     kot: { groupBy: jest.Mock };
     shift: { findMany: jest.Mock };
@@ -94,7 +99,11 @@ describe('DashboardService - Shift-wise Business', () => {
         startsAt: shift1Start,
         endsAt: shift1End,
         note: 'Morning Shift',
-        user: { id: 'user-1', name: 'John Cashier', role: { name: 'CASHIER', label: 'Cashier' } },
+        user: {
+          id: 'user-1',
+          name: 'John Cashier',
+          role: { name: 'CASHIER', label: 'Cashier' },
+        },
       },
       {
         id: 'shift-2',
@@ -103,7 +112,11 @@ describe('DashboardService - Shift-wise Business', () => {
         startsAt: shift2Start,
         endsAt: shift2End,
         note: 'Evening Shift',
-        user: { id: 'user-2', name: 'Alice Manager', role: { name: 'MANAGER', label: 'Manager' } },
+        user: {
+          id: 'user-2',
+          name: 'Alice Manager',
+          role: { name: 'MANAGER', label: 'Manager' },
+        },
       },
     ]);
 
@@ -210,8 +223,18 @@ describe('DashboardService - Shift-wise Business', () => {
       restaurant: { currency: 'INR' },
     });
     prisma.order.findMany.mockResolvedValue([
-      { totalAmount: 1500, billedAt: new Date(), type: 'DINE_IN', guestCount: 4 },
-      { totalAmount: 800, billedAt: new Date(), type: 'DELIVERY', guestCount: 1 },
+      {
+        totalAmount: 1500,
+        billedAt: new Date(),
+        type: 'DINE_IN',
+        guestCount: 4,
+      },
+      {
+        totalAmount: 800,
+        billedAt: new Date(),
+        type: 'DELIVERY',
+        guestCount: 1,
+      },
     ]);
 
     const forecast = await service.getDemandForecast('branch-1');
@@ -220,6 +243,8 @@ describe('DashboardService - Shift-wise Business', () => {
     expect(forecast.forecastDays[0]).toHaveProperty('weather');
     expect(forecast.forecastDays[0]).toHaveProperty('predictedRevenue');
     expect(forecast.forecastDays[0]).toHaveProperty('kitchenPrepAdvice');
-    expect(forecast.forecastDays[0].predictedRevenue.expected).toBeGreaterThan(0);
+    expect(forecast.forecastDays[0].predictedRevenue.expected).toBeGreaterThan(
+      0,
+    );
   });
 });

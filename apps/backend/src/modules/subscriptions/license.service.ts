@@ -46,7 +46,9 @@ export class LicenseService {
       !Array.isArray(payload.features) ||
       !payload.issuedAt
     ) {
-      throw new BadRequestException('Incomplete license payload for generation');
+      throw new BadRequestException(
+        'Incomplete license payload for generation',
+      );
     }
 
     const payloadB64 = Buffer.from(JSON.stringify(payload), 'utf8').toString(
@@ -122,7 +124,7 @@ export class LicenseService {
           payload: {
             restaurantId: 'default-restaurant',
             restaurantName: 'Hanva Restaurant',
-            plan: plan as any,
+            plan: plan,
             expiresAt: expiresAt.toISOString(),
             maxTills: plan === 'STARTER' ? 1 : plan === 'PRO' ? 3 : 10,
             features: [
@@ -177,11 +179,9 @@ export class LicenseService {
     const b64Buf = Buffer.from(expectedB64, 'utf8');
 
     const matchesHex =
-      sigBuf.length === hexBuf.length &&
-      crypto.timingSafeEqual(sigBuf, hexBuf);
+      sigBuf.length === hexBuf.length && crypto.timingSafeEqual(sigBuf, hexBuf);
     const matchesB64 =
-      sigBuf.length === b64Buf.length &&
-      crypto.timingSafeEqual(sigBuf, b64Buf);
+      sigBuf.length === b64Buf.length && crypto.timingSafeEqual(sigBuf, b64Buf);
 
     if (!matchesHex && !matchesB64) {
       return {

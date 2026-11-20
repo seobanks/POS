@@ -215,7 +215,8 @@ export class AuthService {
     // To prevent account enumeration, return the same friendly message whether user exists or not.
     if (!user || !user.email) {
       return {
-        message: 'If an account with this email exists, password reset instructions have been sent.',
+        message:
+          'If an account with this email exists, password reset instructions have been sent.',
       };
     }
 
@@ -253,11 +254,14 @@ export class AuthService {
         this.logger.warn(`Failed to send password reset email: ${err}`);
       }
     } else {
-      this.logger.log(`Password reset link generated for ${user.email}: ${resetUrl}`);
+      this.logger.log(
+        `Password reset link generated for ${user.email}: ${resetUrl}`,
+      );
     }
 
     return {
-      message: 'If an account with this email exists, password reset instructions have been sent.',
+      message:
+        'If an account with this email exists, password reset instructions have been sent.',
       resetUrl: emailed ? undefined : resetUrl,
     };
   }
@@ -267,7 +271,9 @@ export class AuthService {
     try {
       payload = await this.jwt.verifyAsync(dto.token);
     } catch {
-      throw new BadRequestException('Invalid or expired password reset link. Please request a new one.');
+      throw new BadRequestException(
+        'Invalid or expired password reset link. Please request a new one.',
+      );
     }
 
     if (payload.purpose !== 'pwd_reset' || !payload.sub || !payload.v) {
@@ -279,11 +285,15 @@ export class AuthService {
     });
 
     if (!user || !user.isActive) {
-      throw new BadRequestException('User account not found or has been deactivated.');
+      throw new BadRequestException(
+        'User account not found or has been deactivated.',
+      );
     }
 
     if (user.passwordHash.slice(-10) !== payload.v) {
-      throw new BadRequestException('This reset link has already been used. Please request a new one.');
+      throw new BadRequestException(
+        'This reset link has already been used. Please request a new one.',
+      );
     }
 
     const passwordHash = await bcrypt.hash(dto.password, 12);
@@ -294,7 +304,8 @@ export class AuthService {
 
     return {
       success: true,
-      message: 'Your password has been successfully reset. You may now sign in with your new password.',
+      message:
+        'Your password has been successfully reset. You may now sign in with your new password.',
     };
   }
 

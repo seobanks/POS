@@ -123,7 +123,9 @@ export class SubscriptionsController {
   })
   async createRazorpayOrder(@Body() body: CreateOrderDto) {
     if (!body?.plan) {
-      throw new BadRequestException('plan is required (STARTER, PRO, or ENTERPRISE)');
+      throw new BadRequestException(
+        'plan is required (STARTER, PRO, or ENTERPRISE)',
+      );
     }
     const restaurantId = body.restaurantId || 'demo-restaurant';
     const restaurantName = body.restaurantName || 'Hanva Fine Dine';
@@ -151,7 +153,10 @@ export class SubscriptionsController {
   ) {
     if (this.razorpayService.isConfigured()) {
       const rawString = JSON.stringify(payload);
-      const isValid = this.razorpayService.verifyWebhookSignature(rawString, signature);
+      const isValid = this.razorpayService.verifyWebhookSignature(
+        rawString,
+        signature,
+      );
       if (!isValid) {
         throw new UnauthorizedException('Invalid Razorpay webhook signature');
       }

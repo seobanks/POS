@@ -86,11 +86,9 @@ export class SettingsController {
     }
 
     try {
-      await this.settingsService.updateRestaurant(
-        user.restaurantId,
-        user.id,
-        { logoUrl: url } as never,
-      );
+      await this.settingsService.updateRestaurant(user.restaurantId, user.id, {
+        logoUrl: url,
+      });
     } catch {
       // Best-effort auto-save; frontend also executes updateRestaurant mutation
     }

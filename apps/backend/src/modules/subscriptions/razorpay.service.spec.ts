@@ -49,7 +49,8 @@ describe('RazorpayService', () => {
 
     service = module.get<RazorpayService>(RazorpayService);
     licenseService = module.get<LicenseService>(LicenseService);
-    subscriptionsService = module.get<SubscriptionsService>(SubscriptionsService);
+    subscriptionsService =
+      module.get<SubscriptionsService>(SubscriptionsService);
     configService = module.get<ConfigService>(ConfigService);
   });
 

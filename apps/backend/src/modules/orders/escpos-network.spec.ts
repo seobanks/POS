@@ -1,5 +1,9 @@
 import * as net from 'net';
-import { printOverTcp, probeNetworkPrinter, sendViaNetwork } from './escpos-network';
+import {
+  printOverTcp,
+  probeNetworkPrinter,
+  sendViaNetwork,
+} from './escpos-network';
 import { sendToBranchPrinter } from './printer-transport';
 import { PrinterNotFoundError } from './escpos-usb';
 
@@ -69,21 +73,35 @@ describe('printOverTcp', () => {
     const { server, port } = await listen(() => undefined);
     await new Promise<void>((r) => server.close(() => r()));
 
-    const result = await printOverTcp('127.0.0.1', port, Buffer.from('test'), 3000);
+    const result = await printOverTcp(
+      '127.0.0.1',
+      port,
+      Buffer.from('test'),
+      3000,
+    );
     expect(result.success).toBe(false);
     expect(result.error).toMatch(/refused/i);
   });
 
   it('handles timeout when connection cannot be established', async () => {
     // 192.0.2.1 is TEST-NET-1 (RFC 5737), non-routable and drops packets without response
-    const result = await printOverTcp('192.0.2.1', 9100, Buffer.from('timeout test'), 150);
+    const result = await printOverTcp(
+      '192.0.2.1',
+      9100,
+      Buffer.from('timeout test'),
+      150,
+    );
     expect(result.success).toBe(false);
     expect(result.error).toMatch(/timed out|timeout/i);
   });
 
   it('supports overload with default port 9100', async () => {
     // Calling printOverTcp('127.0.0.1', data) defaults to port 9100
-    const result = await printOverTcp('127.0.0.1', Buffer.from('default port test'), 500);
+    const result = await printOverTcp(
+      '127.0.0.1',
+      Buffer.from('default port test'),
+      500,
+    );
     // Port 9100 is likely closed on localhost, returns connection refused without throwing
     expect(result.success).toBe(false);
     expect(result.error).toBeDefined();

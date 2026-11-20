@@ -45,7 +45,10 @@ function preInitResolution() {
 
   // Update NODE_PATH for child resolutions
   const existingNodePath = process.env.NODE_PATH || '';
-  const additions = ['/var/task/apps/backend/node_modules', '/var/task/node_modules'];
+  const additions = [
+    '/var/task/apps/backend/node_modules',
+    '/var/task/node_modules',
+  ];
   process.env.NODE_PATH = `${additions.join(':')}:${existingNodePath}`;
 
   try {

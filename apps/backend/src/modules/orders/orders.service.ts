@@ -113,7 +113,9 @@ export class OrdersService {
       return order;
     } catch (err: any) {
       if (err instanceof NotFoundException) throw err;
-      this.logger.warn(`getOrder failed: ${err?.message || err}. Ensuring schema columns and retrying.`);
+      this.logger.warn(
+        `getOrder failed: ${err?.message || err}. Ensuring schema columns and retrying.`,
+      );
       const columns = [
         `ALTER TABLE "menu_items" ADD COLUMN IF NOT EXISTS "shortCode" TEXT`,
         `ALTER TABLE "menu_items" ADD COLUMN IF NOT EXISTS "onlineDisplayName" TEXT`,
@@ -524,7 +526,11 @@ export class OrdersService {
       throw new NotFoundException('Branch not found');
     }
 
-    const synced: { offlineId: string; serverId: string; orderNumber: string }[] = [];
+    const synced: {
+      offlineId: string;
+      serverId: string;
+      orderNumber: string;
+    }[] = [];
     const failed: { offlineId: string; error: string }[] = [];
 
     for (const offlineOrder of orders) {
@@ -564,7 +570,9 @@ export class OrdersService {
         }
 
         // Collect menuItemIds and modifierIds
-        const menuItemIds = [...new Set(offlineOrder.items.map((i) => i.menuItemId))];
+        const menuItemIds = [
+          ...new Set(offlineOrder.items.map((i) => i.menuItemId)),
+        ];
         const dbMenuItems = await this.prisma.menuItem.findMany({
           where: { id: { in: menuItemIds }, branchId },
         });
@@ -596,9 +604,10 @@ export class OrdersService {
         const modifierMap = new Map(dbModifiers.map((m) => [m.id, m]));
 
         const hasPayments =
-          Array.isArray(offlineOrder.payments) && offlineOrder.payments.length > 0;
+          Array.isArray(offlineOrder.payments) &&
+          offlineOrder.payments.length > 0;
         const totalPaid = hasPayments
-          ? offlineOrder.payments!.reduce(
+          ? offlineOrder.payments.reduce(
               (sum, p) => sum + (Number(p.amount) || 0),
               0,
             )
@@ -628,7 +637,9 @@ export class OrdersService {
                 return {
                   modifier: { connect: { id: dbMod.id } },
                   nameSnapshot: m.nameSnapshot || dbMod.name,
-                  priceAdjSnapshot: Number(m.price ?? dbMod.priceAdjustment ?? 0),
+                  priceAdjSnapshot: Number(
+                    m.price ?? dbMod.priceAdjustment ?? 0,
+                  ),
                 };
               });
 
@@ -695,7 +706,7 @@ export class OrdersService {
               ...(hasPayments
                 ? {
                     payments: {
-                      create: offlineOrder.payments!.map((p) => ({
+                      create: offlineOrder.payments.map((p) => ({
                         method: (validPaymentMethods.includes(p.method)
                           ? p.method
                           : 'OTHER') as any,
@@ -2436,7 +2447,7 @@ export class OrdersService {
               quantity: ret.quantity,
             },
           });
-          item.stockReturns.push({ quantity: ret.quantity } as never);
+          item.stockReturns.push({ quantity: ret.quantity });
           lines.push({ menuItemId: item.menuItemId, quantity: ret.quantity });
         }
         await this.inventory.restoreForReturn(
@@ -2769,7 +2780,7 @@ export class OrdersService {
     branchId: string,
     orderItems: { id: string; menuItemId: string }[],
   ) {
-        // Parallelize station lookup and KOT count to eliminate sequential round trips
+    // Parallelize station lookup and KOT count to eliminate sequential round trips
     const [stationLookup, existingKotCount] = await Promise.all([
       tx.menuItem.findMany({
         where: { id: { in: orderItems.map((i) => i.menuItemId) } },

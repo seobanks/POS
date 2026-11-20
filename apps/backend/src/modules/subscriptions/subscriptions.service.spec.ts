@@ -52,7 +52,8 @@ describe('SubscriptionsService', () => {
           provide: ConfigService,
           useValue: {
             get: jest.fn((key: string) => {
-              if (key === 'JWT_SECRET') return 'test-subscription-service-secret-key-1234';
+              if (key === 'JWT_SECRET')
+                return 'test-subscription-service-secret-key-1234';
               return null;
             }),
           },
@@ -89,7 +90,9 @@ describe('SubscriptionsService', () => {
 
   describe('license activation and status lifecycle', () => {
     it('should return unlicensed status when no license is configured', async () => {
-      jest.spyOn(service as any, 'autoProvisionLicense').mockResolvedValue(null);
+      jest
+        .spyOn(service as any, 'autoProvisionLicense')
+        .mockResolvedValue(null);
       const status = await service.getLicenseStatus();
       expect(status.activated).toBe(false);
       expect(status.status).toBe('UNLICENSED');
@@ -103,9 +106,17 @@ describe('SubscriptionsService', () => {
         restaurantId: 'rest_punjab_grill_42',
         restaurantName: 'Punjab Grill House',
         plan: 'ENTERPRISE',
-        expiresAt: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString(),
+        expiresAt: new Date(
+          Date.now() + 60 * 24 * 60 * 60 * 1000,
+        ).toISOString(),
         maxTills: 10,
-        features: ['kds', 'inventory', 'multi_till', 'aggregators', 'multi_branch'],
+        features: [
+          'kds',
+          'inventory',
+          'multi_till',
+          'aggregators',
+          'multi_branch',
+        ],
         issuedAt: new Date().toISOString(),
       };
 

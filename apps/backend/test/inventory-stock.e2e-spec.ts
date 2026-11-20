@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument -- supertest bodies are untyped by design */
 // Sales -> inventory end-to-end test against a REAL, migrated + seeded Postgres.
 // Opt-in (needs a database):
 //   INVENTORY_E2E=1 DATABASE_URL=... JWT_SECRET=x npm run test:e2e -- inventory-stock

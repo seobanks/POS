@@ -115,10 +115,7 @@ export class AuthController {
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('forgot-password')
   @UsePipes(new ZodValidationPipe(forgotPasswordSchema))
-  async forgotPassword(
-    @Body() body: ForgotPasswordDto,
-    @Req() req: Request,
-  ) {
+  async forgotPassword(@Body() body: ForgotPasswordDto, @Req() req: Request) {
     const origin =
       (req.headers.origin as string) ||
       (req.headers.host ? `https://${req.headers.host}` : undefined);

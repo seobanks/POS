@@ -679,9 +679,14 @@ export class ReportsService {
           salesByItem.set(oi.menuItemId, cur);
         }
 
-        const activeItems = items.filter((i) => salesByItem.has(i.id) || Number(i.price) > 0);
+        const activeItems = items.filter(
+          (i) => salesByItem.has(i.id) || Number(i.price) > 0,
+        );
         const totalItemsCount = activeItems.length || 1;
-        const totalQtySold = [...salesByItem.values()].reduce((sum, v) => sum + v.qty, 0);
+        const totalQtySold = [...salesByItem.values()].reduce(
+          (sum, v) => sum + v.qty,
+          0,
+        );
 
         let totalMarginSum = 0;
         const analyzed = activeItems.map((item) => {
@@ -704,8 +709,10 @@ export class ReportsService {
           };
         });
 
-        const avgPopularity = totalQtySold > 0 ? (totalQtySold / totalItemsCount) * 0.7 : 0;
-        const avgMargin = totalQtySold > 0 ? round2(totalMarginSum / totalQtySold) : 0;
+        const avgPopularity =
+          totalQtySold > 0 ? (totalQtySold / totalItemsCount) * 0.7 : 0;
+        const avgMargin =
+          totalQtySold > 0 ? round2(totalMarginSum / totalQtySold) : 0;
 
         const rows = analyzed
           .map((item) => {
@@ -717,13 +724,16 @@ export class ReportsService {
 
             if (isHighVolume && isHighMargin) {
               classification = 'Star ⭐';
-              strategy = 'Maintain consistent quality, feature prominently, protect price';
+              strategy =
+                'Maintain consistent quality, feature prominently, protect price';
             } else if (isHighVolume && !isHighMargin) {
               classification = 'Plowhorse 🐎';
-              strategy = 'Raise price slightly, reduce portion, or optimize ingredient costs';
+              strategy =
+                'Raise price slightly, reduce portion, or optimize ingredient costs';
             } else if (!isHighVolume && isHighMargin) {
               classification = 'Puzzle 🧩';
-              strategy = 'Reposition on menu, train staff to upsell, run promotion';
+              strategy =
+                'Reposition on menu, train staff to upsell, run promotion';
             }
 
             return [
@@ -812,7 +822,15 @@ export class ReportsService {
         }
 
         return out(
-          ['Hour Window', 'Day Index', 'Day', 'Order Count', 'Total Sales', 'AOV', 'Traffic Level'],
+          [
+            'Hour Window',
+            'Day Index',
+            'Day',
+            'Order Count',
+            'Total Sales',
+            'AOV',
+            'Traffic Level',
+          ],
           rows,
         );
       }
@@ -828,7 +846,10 @@ export class ReportsService {
           },
         });
 
-        const byDay = new Map<string, { orders: number; covers: number; sales: number }>();
+        const byDay = new Map<
+          string,
+          { orders: number; covers: number; sales: number }
+        >();
         for (const o of orders) {
           const d = localDate(o.billedAt!, tz);
           const cur = byDay.get(d) ?? { orders: 0, covers: 0, sales: 0 };
@@ -842,7 +863,8 @@ export class ReportsService {
           .sort((a, b) => b[0].localeCompare(a[0]))
           .map(([date, val]) => {
             const revPc = val.covers > 0 ? round2(val.sales / val.covers) : 0;
-            const avgCovers = val.orders > 0 ? round2(val.covers / val.orders) : 0;
+            const avgCovers =
+              val.orders > 0 ? round2(val.covers / val.orders) : 0;
             return [
               date,
               val.orders,
@@ -902,7 +924,10 @@ export class ReportsService {
         for (const o of orders) {
           const id = o.createdById || 'unassigned';
           const name = o.createdBy?.name || 'Self-Service / Online';
-          const role = o.createdBy?.role?.label || o.createdBy?.role?.name || 'General Staff';
+          const role =
+            o.createdBy?.role?.label ||
+            o.createdBy?.role?.name ||
+            'General Staff';
           const cur = staffMap.get(id) ?? {
             name,
             role,
@@ -916,7 +941,10 @@ export class ReportsService {
           cur.total += 1;
           if (o.status === 'PAID') {
             cur.paid += 1;
-            cur.grossSales += Number(o.totalAmount) + Number(o.discountAmount) - Number(o.tipAmount);
+            cur.grossSales +=
+              Number(o.totalAmount) +
+              Number(o.discountAmount) -
+              Number(o.tipAmount);
             cur.netSales += Number(o.totalAmount) - Number(o.tipAmount);
             cur.tips += Number(o.tipAmount);
           } else if (o.status === 'CANCELLED') {
@@ -928,7 +956,8 @@ export class ReportsService {
         const rows = [...staffMap.values()]
           .map((s) => {
             const aov = s.paid > 0 ? round2(s.netSales / s.paid) : 0;
-            const cancelRate = s.total > 0 ? round2((s.cancelled / s.total) * 100) : 0;
+            const cancelRate =
+              s.total > 0 ? round2((s.cancelled / s.total) * 100) : 0;
             return [
               s.name,
               s.role,

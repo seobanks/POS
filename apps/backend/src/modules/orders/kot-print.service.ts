@@ -6,7 +6,10 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { RealtimeGateway } from '../../realtime/realtime.gateway';
 import { buildKotEscPosJob, resolveProfile } from './escpos-receipt';
-import { sendToBranchPrinter, type BranchPrinterTarget } from './printer-transport';
+import {
+  sendToBranchPrinter,
+  type BranchPrinterTarget,
+} from './printer-transport';
 
 export interface KotPrintResult {
   ok: true;
@@ -162,7 +165,8 @@ export class KotPrintService {
         } else {
           target = {
             printerConnection: branch.printerConnection || 'WINDOWS',
-            printerTransport: branch.printerTransport || branch.printerConnection || 'WINDOWS',
+            printerTransport:
+              branch.printerTransport || branch.printerConnection || 'WINDOWS',
             printerHost: branch.printerHost || null,
             printerIp: branch.printerIp || branch.printerHost || null,
             printerPort: branch.printerPort || 9100,
@@ -171,8 +175,10 @@ export class KotPrintService {
         }
       } else {
         target = {
-          printerConnection: branch.printerConnection || branch.printerTransport || 'USB',
-          printerTransport: branch.printerTransport || branch.printerConnection || 'USB',
+          printerConnection:
+            branch.printerConnection || branch.printerTransport || 'USB',
+          printerTransport:
+            branch.printerTransport || branch.printerConnection || 'USB',
           printerHost: branch.printerHost || branch.printerIp || null,
           printerIp: branch.printerIp || branch.printerHost || null,
           printerPort: branch.printerPort || 9100,
@@ -205,7 +211,9 @@ export class KotPrintService {
         stationId: kot.stationId,
         stationName: kot.station?.name ?? 'Kitchen',
         targetPrinter:
-          kot.station?.printerName || branch.printerName || 'Default KOT Printer',
+          kot.station?.printerName ||
+          branch.printerName ||
+          'Default KOT Printer',
         jobType: 'KOT',
         ticketNumber: kot.ticketNumber,
         rawEscposBase64: job.buffer.toString('base64'),

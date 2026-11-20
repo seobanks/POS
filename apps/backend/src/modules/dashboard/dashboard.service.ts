@@ -138,7 +138,11 @@ export class DashboardService {
       }
 
       const formatTime = (d: Date) =>
-        d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+        d.toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true,
+        });
       const formattedTime = `${formatTime(shiftStart)} – ${formatTime(shiftEnd)}`;
 
       return {
@@ -244,10 +248,18 @@ export class DashboardService {
     );
 
     const dineInPaid = paidOrdersToday.filter((o) => o.type === 'DINE_IN');
-    const todayCovers = dineInPaid.reduce((sum, o) => sum + (o.guestCount || 1), 0);
-    const dineInRevenue = dineInPaid.reduce((sum, o) => sum + Number(o.totalAmount ?? 0), 0);
+    const todayCovers = dineInPaid.reduce(
+      (sum, o) => sum + (o.guestCount || 1),
+      0,
+    );
+    const dineInRevenue = dineInPaid.reduce(
+      (sum, o) => sum + Number(o.totalAmount ?? 0),
+      0,
+    );
     const revenuePerCover =
-      todayCovers > 0 ? Math.round((dineInRevenue / todayCovers) * 100) / 100 : 0;
+      todayCovers > 0
+        ? Math.round((dineInRevenue / todayCovers) * 100) / 100
+        : 0;
 
     return {
       todayRevenue,

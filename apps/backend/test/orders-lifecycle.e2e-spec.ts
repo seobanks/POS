@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return -- supertest bodies are untyped by design */
 // Table switching, cancellation, bill edits and kitchen-ticket printing,
 // end to end against a REAL, migrated + seeded Postgres. Opt-in:
 //   LIFECYCLE_E2E=1 DATABASE_URL=... JWT_SECRET=x npx jest --config ./test/jest-e2e.json orders-lifecycle

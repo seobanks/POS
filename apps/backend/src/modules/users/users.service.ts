@@ -268,7 +268,8 @@ export class UsersService {
       throw new NotFoundException('Staff account not found');
     }
 
-    const isCustomized = !user.role.isSystem || user.role.name.startsWith('STAFF_');
+    const isCustomized =
+      !user.role.isSystem || user.role.name.startsWith('STAFF_');
 
     return {
       userId: user.id,
@@ -307,7 +308,9 @@ export class UsersService {
         throw new BadRequestException('Target role not found');
       }
 
-      const previousCustomRoleId = user.role.name.startsWith('STAFF_') ? user.role.id : null;
+      const previousCustomRoleId = user.role.name.startsWith('STAFF_')
+        ? user.role.id
+        : null;
 
       await this.prisma.user.update({
         where: { id },
@@ -315,9 +318,13 @@ export class UsersService {
       });
 
       if (previousCustomRoleId) {
-        const count = await this.prisma.user.count({ where: { roleId: previousCustomRoleId } });
+        const count = await this.prisma.user.count({
+          where: { roleId: previousCustomRoleId },
+        });
         if (count === 0) {
-          await this.prisma.role.delete({ where: { id: previousCustomRoleId } }).catch(() => {});
+          await this.prisma.role
+            .delete({ where: { id: previousCustomRoleId } })
+            .catch(() => {});
         }
       }
 

@@ -153,30 +153,32 @@ if (-not $ok) {
 }
 `;
 
-    return await new Promise<{ success: boolean; error?: string }>((resolve) => {
-      execFile(
-        'powershell.exe',
-        [
-          '-NoProfile',
-          '-NonInteractive',
-          '-Command',
-          script,
-          printerName || '',
-          tmpFile,
-        ],
-        { timeout: 8000 },
-        (err) => {
-          if (err) {
-            resolve({
-              success: false,
-              error: err.message || 'Spooler write error',
-            });
-          } else {
-            resolve({ success: true });
-          }
-        },
-      );
-    });
+    return await new Promise<{ success: boolean; error?: string }>(
+      (resolve) => {
+        execFile(
+          'powershell.exe',
+          [
+            '-NoProfile',
+            '-NonInteractive',
+            '-Command',
+            script,
+            printerName || '',
+            tmpFile,
+          ],
+          { timeout: 8000 },
+          (err) => {
+            if (err) {
+              resolve({
+                success: false,
+                error: err.message || 'Spooler write error',
+              });
+            } else {
+              resolve({ success: true });
+            }
+          },
+        );
+      },
+    );
   } catch (err) {
     return {
       success: false,

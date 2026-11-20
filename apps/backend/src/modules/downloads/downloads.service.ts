@@ -3,7 +3,8 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
 const DOWNLOAD_CHANNELS: Record<string, string> = {
-  windows: 'https://github.com/seobanks/POS/releases/latest/download/HanvaPOS-Setup-v1.0.0.exe',
+  windows:
+    'https://github.com/seobanks/POS/releases/latest/download/HanvaPOS-Setup-v1.0.0.exe',
   github: 'https://github.com/seobanks/POS',
   'install-script':
     'https://raw.githubusercontent.com/seobanks/POS/main/install.sh',

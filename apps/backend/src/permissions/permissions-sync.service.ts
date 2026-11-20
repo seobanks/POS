@@ -36,10 +36,14 @@ export class PermissionsSyncService implements OnModuleInit {
       try {
         await this.prisma.$executeRawUnsafe(sql);
       } catch (err: any) {
-        this.logger.warn(`Database column auto-backfill warning for [${sql}]: ${err?.message || err}`);
+        this.logger.warn(
+          `Database column auto-backfill warning for [${sql}]: ${err?.message || err}`,
+        );
       }
     }
-    this.logger.log('Database columns for menu_items verified / backfilled successfully.');
+    this.logger.log(
+      'Database columns for menu_items verified / backfilled successfully.',
+    );
   }
 
   async sync() {

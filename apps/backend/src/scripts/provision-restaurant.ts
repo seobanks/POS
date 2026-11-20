@@ -1,6 +1,6 @@
 /**
  * Backend-Only Restaurant Provisioning Script
- * 
+ *
  * Usage:
  *   npx ts-node src/scripts/provision-restaurant.ts \
  *     --name "My Restaurant" \
@@ -8,7 +8,7 @@
  *     --owner "Owner Name" \
  *     --email "owner@example.com" \
  *     --password "SecurePassword123!"
- * 
+ *
  * Or via environment variables:
  *   RESTAURANT_NAME="My Restaurant" \
  *   OWNER_NAME="Owner Name" \
@@ -37,9 +37,7 @@ function getArg(flag: string): string | undefined {
 
 async function main() {
   const restaurantName =
-    getArg('--name') ||
-    getArg('-n') ||
-    process.env.RESTAURANT_NAME;
+    getArg('--name') || getArg('-n') || process.env.RESTAURANT_NAME;
 
   const branchName =
     getArg('--branch') ||
@@ -47,29 +45,25 @@ async function main() {
     process.env.BRANCH_NAME ||
     'Main Branch';
 
-  const ownerName =
-    getArg('--owner') ||
-    getArg('-o') ||
-    process.env.OWNER_NAME;
+  const ownerName = getArg('--owner') || getArg('-o') || process.env.OWNER_NAME;
 
-  const email =
-    getArg('--email') ||
-    getArg('-e') ||
-    process.env.OWNER_EMAIL;
+  const email = getArg('--email') || getArg('-e') || process.env.OWNER_EMAIL;
 
   const password =
-    getArg('--password') ||
-    getArg('-p') ||
-    process.env.OWNER_PASSWORD;
+    getArg('--password') || getArg('-p') || process.env.OWNER_PASSWORD;
 
   if (!restaurantName || !ownerName || !email || !password) {
-    console.error('\n❌ Missing required arguments for restaurant provisioning.\n');
+    console.error(
+      '\n❌ Missing required arguments for restaurant provisioning.\n',
+    );
     console.log('Usage:');
     console.log(
       '  pnpm provision:restaurant --name "Restaurant" --owner "Owner" --email "owner@example.com" --password "Password" [--branch "Main Branch"]\n',
     );
     console.log('Or provide environment variables:');
-    console.log('  RESTAURANT_NAME, OWNER_NAME, OWNER_EMAIL, OWNER_PASSWORD, BRANCH_NAME\n');
+    console.log(
+      '  RESTAURANT_NAME, OWNER_NAME, OWNER_EMAIL, OWNER_PASSWORD, BRANCH_NAME\n',
+    );
     process.exit(1);
   }
 
@@ -78,7 +72,9 @@ async function main() {
     process.exit(1);
   }
 
-  console.log(`\n🔒 Initiating backend restaurant provisioning for "${restaurantName}"...`);
+  console.log(
+    `\n🔒 Initiating backend restaurant provisioning for "${restaurantName}"...`,
+  );
 
   // Check if owner email already exists
   const existingUser = await prisma.user.findFirst({
@@ -86,7 +82,9 @@ async function main() {
   });
 
   if (existingUser) {
-    console.error(`❌ An account with email "${email}" already exists (User ID: ${existingUser.id}).`);
+    console.error(
+      `❌ An account with email "${email}" already exists (User ID: ${existingUser.id}).`,
+    );
     process.exit(1);
   }
 

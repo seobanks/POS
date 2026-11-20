@@ -18,7 +18,11 @@ export class StockDepletionService {
     orderId: string,
     branchId: string,
     userId: string,
-  ): Promise<{ success: boolean; depletedIngredients: number; costOfGoods: number }> {
+  ): Promise<{
+    success: boolean;
+    depletedIngredients: number;
+    costOfGoods: number;
+  }> {
     try {
       const order = await this.prisma.order.findFirst({
         where: { id: orderId, branchId },

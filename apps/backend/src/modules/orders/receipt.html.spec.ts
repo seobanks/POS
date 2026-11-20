@@ -70,7 +70,6 @@ describe('receipt HTML with VERI*FACTU', () => {
   });
 });
 
-
 describe('receipt HTML with dynamic UPI QR', () => {
   it('renders inline 35mm QR and caption when order.upi is provided', () => {
     const html = buildReceiptHtml({
@@ -131,7 +130,8 @@ describe('receipt HTML with dynamic UPI QR', () => {
 
 describe('receipt HTML with restaurant logo', () => {
   it('renders centered monochrome-filtered logo when logoUrl is provided', () => {
-    const logoUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY44YAAAAASUVORK5CYII=';
+    const logoUrl =
+      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY44YAAAAASUVORK5CYII=';
     const html = buildReceiptHtml({
       ...base,
       logoUrl,

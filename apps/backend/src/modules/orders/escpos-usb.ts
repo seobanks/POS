@@ -22,7 +22,6 @@ let usbModule: UsbModule | null | undefined;
 function getUsb(): UsbModule | null {
   if (usbModule === undefined) {
     try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports -- `usb` has no usable ESM/TS types export shape for this narrow use
       usbModule = require('usb') as UsbModule;
     } catch {
       usbModule = null;

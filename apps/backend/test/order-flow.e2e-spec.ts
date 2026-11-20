@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return -- supertest bodies are untyped by design */
 // The order lifecycle end to end, against a REAL, migrated + seeded Postgres:
 // incoming-order accept/decline, kitchen ticket state machine and rejection,
 // print-bill-before-payment, part and split payments with change, discount

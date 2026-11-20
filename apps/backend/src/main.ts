@@ -1,7 +1,13 @@
 import './pre-init.js';
 import { tmpdir } from 'node:os';
 import { randomBytes } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  writeFileSync,
+} from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { createRequire, Module } from 'node:module';
 import { NestFactory } from '@nestjs/core';
@@ -123,7 +129,9 @@ function resolveJwtSecret(): string {
     }
     return generated;
   } catch (err) {
-    console.warn(`JWT_SECRET fallback to in-memory random secret: ${err instanceof Error ? err.message : String(err)}`);
+    console.warn(
+      `JWT_SECRET fallback to in-memory random secret: ${err instanceof Error ? err.message : String(err)}`,
+    );
     return randomBytes(32).toString('hex');
   }
 }
@@ -180,7 +188,9 @@ async function bootstrap(): Promise<NestExpressApplication> {
   app.use('/api/uploads', (_req: any, res: any) => {
     res.setHeader('Content-Type', 'image/svg+xml');
     res.setHeader('Cache-Control', 'public, max-age=3600');
-    return res.status(200).send('<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>');
+    return res
+      .status(200)
+      .send('<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>');
   });
 
   if (
@@ -260,7 +270,9 @@ function buildDebugReport(err?: any) {
       var_task_files: listSafeDir('/var/task'),
       var_task_src_files: listSafeDir('/var/task/src'),
       var_task_nm_files: listSafeDir('/var/task/node_modules'),
-      var_task_backend_nm_files: listSafeDir('/var/task/apps/backend/node_modules'),
+      var_task_backend_nm_files: listSafeDir(
+        '/var/task/apps/backend/node_modules',
+      ),
     },
   };
 }

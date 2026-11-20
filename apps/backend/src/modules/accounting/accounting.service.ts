@@ -3,7 +3,11 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import type { CashClosingDto, ExpenseDto, ZReportDto } from '@nodedr-restaurant/types';
+import type {
+  CashClosingDto,
+  ExpenseDto,
+  ZReportDto,
+} from '@nodedr-restaurant/types';
 import { zonedRange } from '../../common/time';
 import { BranchTimeService } from '../../common/services/branch-time.service';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -193,17 +197,28 @@ export class AccountingService {
       }),
       this.prisma.expense.findMany({
         where: { branchId, spentOn: from },
-        select: { category: true, amount: true, paidFromCash: true, note: true },
+        select: {
+          category: true,
+          amount: true,
+          paidFromCash: true,
+          note: true,
+        },
       }),
     ]);
 
     const paidOrders = orders.filter((o) => o.status === 'PAID');
-    const openOrders = orders.filter((o) => o.status !== 'PAID' && o.status !== 'CANCELLED');
+    const openOrders = orders.filter(
+      (o) => o.status !== 'PAID' && o.status !== 'CANCELLED',
+    );
     const cancelledOrders = orders.filter((o) => o.status === 'CANCELLED');
 
     const grossSales = round2(
       paidOrders.reduce(
-        (sum, o) => sum + Number(o.totalAmount) + Number(o.discountAmount) - Number(o.tipAmount),
+        (sum, o) =>
+          sum +
+          Number(o.totalAmount) +
+          Number(o.discountAmount) -
+          Number(o.tipAmount),
         0,
       ),
     );
@@ -222,11 +237,15 @@ export class AccountingService {
     );
 
     const dineInOrders = paidOrders.filter((o) => o.type === 'DINE_IN');
-    const totalCovers = dineInOrders.reduce((sum, o) => sum + (o.guestCount || 1), 0);
+    const totalCovers = dineInOrders.reduce(
+      (sum, o) => sum + (o.guestCount || 1),
+      0,
+    );
     const dineInRevenue = round2(
       dineInOrders.reduce((sum, o) => sum + Number(o.totalAmount), 0),
     );
-    const revPerCover = totalCovers > 0 ? round2(dineInRevenue / totalCovers) : 0;
+    const revPerCover =
+      totalCovers > 0 ? round2(dineInRevenue / totalCovers) : 0;
 
     // Payments by Tender
     const paymentMethods: Record<string, { count: number; amount: number }> = {
@@ -239,16 +258,22 @@ export class AccountingService {
     for (const p of payments) {
       const m = p.method in paymentMethods ? p.method : 'OTHER';
       paymentMethods[m].count += 1;
-      paymentMethods[m].amount = round2(paymentMethods[m].amount + Number(p.amount));
+      paymentMethods[m].amount = round2(
+        paymentMethods[m].amount + Number(p.amount),
+      );
     }
 
     // Cash Drawer Reconciliation
     const cashSales = paymentMethods.CASH.amount;
     const cashRefunds = round2(
-      refunds.filter((r) => r.method === 'CASH').reduce((sum, r) => sum + Number(r.amount), 0),
+      refunds
+        .filter((r) => r.method === 'CASH')
+        .reduce((sum, r) => sum + Number(r.amount), 0),
     );
     const cashExpenses = round2(
-      expenses.filter((e) => e.paidFromCash).reduce((sum, e) => sum + Number(e.amount), 0),
+      expenses
+        .filter((e) => e.paidFromCash)
+        .reduce((sum, e) => sum + Number(e.amount), 0),
     );
     const expectedCashInDrawer = expectedCash(
       openingFloat,
@@ -264,18 +289,23 @@ export class AccountingService {
         const cat = item.menuItem?.category?.name || 'General';
         const cur = categoryMap.get(cat) || { quantity: 0, amount: 0 };
         cur.quantity += item.quantity;
-        cur.amount = round2(cur.amount + item.quantity * Number(item.unitPriceSnapshot || 0));
+        cur.amount = round2(
+          cur.amount + item.quantity * Number(item.unitPriceSnapshot || 0),
+        );
         categoryMap.set(cat, cur);
       }
     }
-    const categorySales = Array.from(categoryMap.entries()).map(([category, val]) => ({
-      category,
-      quantity: val.quantity,
-      amount: val.amount,
-    }));
+    const categorySales = Array.from(categoryMap.entries()).map(
+      ([category, val]) => ({
+        category,
+        quantity: val.quantity,
+        amount: val.amount,
+      }),
+    );
 
     const cur = branch?.restaurant?.currency || 'INR';
-    const sym = cur === 'INR' ? 'Rs.' : cur === 'USD' ? '$' : cur === 'EUR' ? '€' : cur;
+    const sym =
+      cur === 'INR' ? 'Rs.' : cur === 'USD' ? '$' : cur === 'EUR' ? '€' : cur;
 
     const printableSlip = [
       '========================================',
@@ -351,7 +381,9 @@ export class AccountingService {
       payments: paymentMethods,
       refunds: {
         count: refunds.length,
-        totalAmount: round2(refunds.reduce((sum, r) => sum + Number(r.amount), 0)),
+        totalAmount: round2(
+          refunds.reduce((sum, r) => sum + Number(r.amount), 0),
+        ),
         cashAmount: cashRefunds,
       },
       cashDrawer: {
@@ -367,7 +399,11 @@ export class AccountingService {
   }
 
   async generateZReport(branchId: string, userId: string, dto: ZReportDto) {
-    const xReport = await this.getXReport(branchId, dto.businessDate, dto.openingFloat);
+    const xReport = await this.getXReport(
+      branchId,
+      dto.businessDate,
+      dto.openingFloat,
+    );
     const date = dto.businessDate;
     const from = dayStart(date);
 
@@ -430,8 +466,18 @@ export class AccountingService {
       },
     });
 
-    const sym = xReport.currency === 'INR' ? 'Rs.' : xReport.currency === 'USD' ? '$' : xReport.currency;
-    const varLabel = variance === 0 ? 'BALANCED' : variance > 0 ? `OVER (+${sym} ${variance.toFixed(2)})` : `SHORT (-${sym} ${Math.abs(variance).toFixed(2)})`;
+    const sym =
+      xReport.currency === 'INR'
+        ? 'Rs.'
+        : xReport.currency === 'USD'
+          ? '$'
+          : xReport.currency;
+    const varLabel =
+      variance === 0
+        ? 'BALANCED'
+        : variance > 0
+          ? `OVER (+${sym} ${variance.toFixed(2)})`
+          : `SHORT (-${sym} ${Math.abs(variance).toFixed(2)})`;
 
     const zSlip = [
       '========================================',

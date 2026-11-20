@@ -118,7 +118,9 @@ describe('LicenseService', () => {
 
       const result = service.verifyLicense(tamperedKey);
       expect(result.isValid).toBe(false);
-      expect(result.error).toContain('Invalid license signature or tampered key');
+      expect(result.error).toContain(
+        'Invalid license signature or tampered key',
+      );
     });
 
     it('should detect and reject tampered signature', () => {
@@ -132,7 +134,9 @@ describe('LicenseService', () => {
 
       const result = service.verifyLicense(tamperedKey);
       expect(result.isValid).toBe(false);
-      expect(result.error).toContain('Invalid license signature or tampered key');
+      expect(result.error).toContain(
+        'Invalid license signature or tampered key',
+      );
     });
 
     it('should reject key signed with a different secret', async () => {
@@ -155,7 +159,9 @@ describe('LicenseService', () => {
       // Verifying forged key with our official service must fail
       const result = service.verifyLicense(forgedKey);
       expect(result.isValid).toBe(false);
-      expect(result.error).toContain('Invalid license signature or tampered key');
+      expect(result.error).toContain(
+        'Invalid license signature or tampered key',
+      );
     });
 
     it('should reject corrupted non-JSON payload', () => {

@@ -28,7 +28,7 @@ describe('KotPrintService Multi-Station Routing & Realtime Spooler', () => {
       emitToBranch: jest.fn(),
     };
 
-    service = new KotPrintService(mockPrisma as any, mockRealtime as any);
+    service = new KotPrintService(mockPrisma, mockRealtime);
   });
 
   const baseBranch = {
@@ -84,7 +84,9 @@ describe('KotPrintService Multi-Station Routing & Realtime Spooler', () => {
     mockPrisma.kot.findMany.mockResolvedValue([kot]);
     mockPrisma.kot.updateMany.mockResolvedValue({ count: 1 });
     mockPrisma.kot.update.mockResolvedValue({ id: kot.id, printedCount: 1 });
-    (printerTransport.sendToBranchPrinter as jest.Mock).mockResolvedValue(undefined);
+    (printerTransport.sendToBranchPrinter as jest.Mock).mockResolvedValue(
+      undefined,
+    );
 
     const result = await service.printTicket('branch-1', 'kot-101', false);
 
@@ -125,7 +127,9 @@ describe('KotPrintService Multi-Station Routing & Realtime Spooler', () => {
     mockPrisma.kot.findMany.mockResolvedValue([kot]);
     mockPrisma.kot.updateMany.mockResolvedValue({ count: 1 });
     mockPrisma.kot.update.mockResolvedValue({ id: kot.id, printedCount: 1 });
-    (printerTransport.sendToBranchPrinter as jest.Mock).mockResolvedValue(undefined);
+    (printerTransport.sendToBranchPrinter as jest.Mock).mockResolvedValue(
+      undefined,
+    );
 
     await service.printTicket('branch-1', 'kot-101', false);
 
@@ -142,7 +146,9 @@ describe('KotPrintService Multi-Station Routing & Realtime Spooler', () => {
     mockPrisma.kot.findMany.mockResolvedValue([kot]);
     mockPrisma.kot.updateMany.mockResolvedValue({ count: 1 });
     mockPrisma.kot.update.mockResolvedValue({ id: kot.id, printedCount: 1 });
-    (printerTransport.sendToBranchPrinter as jest.Mock).mockResolvedValue(undefined);
+    (printerTransport.sendToBranchPrinter as jest.Mock).mockResolvedValue(
+      undefined,
+    );
 
     await service.printTicket('branch-1', 'kot-101', false);
 

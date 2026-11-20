@@ -104,7 +104,9 @@ export class MenuService {
       try {
         await this.prisma.$executeRawUnsafe(sql);
       } catch (err: any) {
-        this.logger.warn(`Column check failed on [${sql}]: ${err?.message || err}`);
+        this.logger.warn(
+          `Column check failed on [${sql}]: ${err?.message || err}`,
+        );
       }
     }
   }
@@ -129,7 +131,9 @@ export class MenuService {
         },
       });
     } catch (err: any) {
-      this.logger.warn(`listItems query encountered an error: ${err?.message || err}. Ensuring schema columns.`);
+      this.logger.warn(
+        `listItems query encountered an error: ${err?.message || err}. Ensuring schema columns.`,
+      );
       await this.ensureColumns();
       return this.prisma.menuItem.findMany({
         where: {
@@ -163,7 +167,9 @@ export class MenuService {
       return item;
     } catch (err: any) {
       if (err instanceof NotFoundException) throw err;
-      this.logger.warn(`getItem query encountered an error: ${err?.message || err}. Ensuring schema columns.`);
+      this.logger.warn(
+        `getItem query encountered an error: ${err?.message || err}. Ensuring schema columns.`,
+      );
       await this.ensureColumns();
       const item = await this.prisma.menuItem.findFirst({
         where: { id, branchId },
@@ -447,7 +453,9 @@ export class MenuService {
         take: 50,
       });
     } catch (err: any) {
-      this.logger.warn(`getDeletedItems query encountered an error: ${err?.message || err}. Ensuring schema columns.`);
+      this.logger.warn(
+        `getDeletedItems query encountered an error: ${err?.message || err}. Ensuring schema columns.`,
+      );
       await this.ensureColumns();
       return this.prisma.menuItem.findMany({
         where: { branchId, isActive: false },

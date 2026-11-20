@@ -11,7 +11,10 @@ import type {
   SubscriptionPlanType,
 } from '@nodedr-restaurant/types';
 import { LicenseService } from './license.service';
-import { SubscriptionsService, SUBSCRIPTION_PLANS } from './subscriptions.service';
+import {
+  SubscriptionsService,
+  SUBSCRIPTION_PLANS,
+} from './subscriptions.service';
 
 export interface CreateOrderResult {
   orderId: string;
@@ -36,7 +39,9 @@ export class RazorpayService {
     private readonly subscriptionsService: SubscriptionsService,
   ) {
     this.keyId = this.configService.get<string>('RAZORPAY_KEY_ID', '').trim();
-    this.keySecret = this.configService.get<string>('RAZORPAY_KEY_SECRET', '').trim();
+    this.keySecret = this.configService
+      .get<string>('RAZORPAY_KEY_SECRET', '')
+      .trim();
     this.webhookSecret = this.configService
       .get<string>('RAZORPAY_WEBHOOK_SECRET', '')
       .trim();
@@ -82,7 +87,9 @@ export class RazorpayService {
     }
 
     try {
-      const auth = Buffer.from(`${this.keyId}:${this.keySecret}`).toString('base64');
+      const auth = Buffer.from(`${this.keyId}:${this.keySecret}`).toString(
+        'base64',
+      );
       const response = await fetch('https://api.razorpay.com/v1/orders', {
         method: 'POST',
         headers: {
@@ -104,10 +111,12 @@ export class RazorpayService {
       if (!response.ok) {
         const errorBody = await response.text();
         this.logger.error(`Razorpay order creation failed: ${errorBody}`);
-        throw new BadRequestException('Failed to create Razorpay payment order');
+        throw new BadRequestException(
+          'Failed to create Razorpay payment order',
+        );
       }
 
-      const orderData = (await response.json()) as any;
+      const orderData = await response.json();
       return {
         orderId: orderData.id,
         amount: orderData.amount,
@@ -166,7 +175,8 @@ export class RazorpayService {
 
     const restaurantId = notes.restaurantId || 'demo-restaurant';
     const restaurantName = notes.restaurantName || 'Hanva Fine Dine';
-    const planType: SubscriptionPlanType = (notes.plan as SubscriptionPlanType) || 'PRO';
+    const planType: SubscriptionPlanType =
+      (notes.plan as SubscriptionPlanType) || 'PRO';
 
     const planConfig = SUBSCRIPTION_PLANS.find((p) => p.plan === planType);
     const maxTills = planConfig?.maxTills || 3;

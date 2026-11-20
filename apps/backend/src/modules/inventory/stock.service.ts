@@ -106,9 +106,8 @@ export class StockService {
     const portions: StockConsumptionPortion[] = [];
     let remaining = quantity;
 
-    const movementType = (opts.type === 'SALE'
-      ? ('CONSUMPTION' as StockMovementType)
-      : opts.type) as StockMovementType;
+    const movementType =
+      opts.type === 'SALE' ? ('CONSUMPTION' as StockMovementType) : opts.type;
 
     for (const batch of batches) {
       if (remaining <= 0) break;

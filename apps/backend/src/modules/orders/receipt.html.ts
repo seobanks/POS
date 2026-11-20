@@ -14,7 +14,11 @@
 // note) and are never recomputed here.
 
 import { qrSvg } from '../verifactu/verifactu.qr';
-import { buildUpiUri, type ReceiptVerifactu, type ReceiptUpi } from './escpos-receipt';
+import {
+  buildUpiUri,
+  type ReceiptVerifactu,
+  type ReceiptUpi,
+} from './escpos-receipt';
 import {
   resolveTaxIdLabel,
   resolveTaxLabel,

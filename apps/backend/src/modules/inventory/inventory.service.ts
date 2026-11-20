@@ -62,7 +62,8 @@ export class InventoryService {
       const menuItem = await this.prisma.menuItem.findFirst({
         where: { id: linkMenuItemId, branchId },
       });
-      if (!menuItem) throw new NotFoundException('Selected menu item not found');
+      if (!menuItem)
+        throw new NotFoundException('Selected menu item not found');
     }
 
     const startingStock = initialStock && initialStock > 0 ? initialStock : 0;
@@ -146,7 +147,12 @@ export class InventoryService {
     dto: Partial<IngredientDto>,
   ) {
     await this.getIngredient(branchId, id);
-    const { linkMenuItemId, initialStock: _initialStock, costPrice, ...rest } = dto;
+    const {
+      linkMenuItemId,
+      initialStock: _initialStock,
+      costPrice,
+      ...rest
+    } = dto;
 
     return this.prisma.$transaction(async (tx) => {
       const updated = await tx.ingredient.update({
@@ -178,7 +184,11 @@ export class InventoryService {
     });
   }
 
-  async linkMenuItem(branchId: string, ingredientId: string, menuItemId: string) {
+  async linkMenuItem(
+    branchId: string,
+    ingredientId: string,
+    menuItemId: string,
+  ) {
     await this.getIngredient(branchId, ingredientId);
     const menuItem = await this.prisma.menuItem.findFirst({
       where: { id: menuItemId, branchId },
@@ -512,7 +522,9 @@ export class InventoryService {
       const needsMatch = rows.filter(
         (m) =>
           !m.isCombo &&
-          ((m.inventoryTracking === 'NONE' && !m.stockIngredientId && m.recipeLines.length === 0) ||
+          ((m.inventoryTracking === 'NONE' &&
+            !m.stockIngredientId &&
+            m.recipeLines.length === 0) ||
             (m.inventoryTracking === 'DIRECT' && !m.stockIngredientId)),
       );
       if (needsMatch.length > 0) {
@@ -536,7 +548,11 @@ export class InventoryService {
           tracking = 'DIRECT';
         } else if (tracking === 'NONE' && m.recipeLines.length > 0) {
           tracking = 'RECIPE';
-        } else if (!m.isCombo && (!stockIngredientId || tracking === 'NONE') && fallbackIngredients) {
+        } else if (
+          !m.isCombo &&
+          (!stockIngredientId || tracking === 'NONE') &&
+          fallbackIngredients
+        ) {
           const matchId = fallbackIngredients.get(m.name.toLowerCase().trim());
           if (matchId) {
             tracking = 'DIRECT';

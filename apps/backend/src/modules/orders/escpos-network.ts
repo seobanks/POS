@@ -70,7 +70,10 @@ export function printOverTcp(
     };
 
     socket.setTimeout(timeout, () => {
-      cleanup(false, `Timed out printing to ${host}:${port} after ${timeout}ms`);
+      cleanup(
+        false,
+        `Timed out printing to ${host}:${port} after ${timeout}ms`,
+      );
     });
 
     socket.once('error', (err: NodeJS.ErrnoException) => {

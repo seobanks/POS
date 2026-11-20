@@ -20,7 +20,8 @@ export class DownloadsController {
   async go(@Param('channel') channel: string, @Res() res: Response) {
     if (channel === 'windows') {
       const localExe =
-        process.env.WINDOWS_INSTALLER_PATH || 'C:\\hp-dist\\HanvaPOS-Setup-v1.0.0.exe';
+        process.env.WINDOWS_INSTALLER_PATH ||
+        'C:\\hp-dist\\HanvaPOS-Setup-v1.0.0.exe';
       if (existsSync(localExe)) {
         await this.downloads.recordStat('windows');
         return res.download(localExe, 'HanvaPOS-Setup-v1.0.0.exe');
