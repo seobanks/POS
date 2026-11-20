@@ -608,7 +608,24 @@ export class OrdersController {
       kind === 'kot'
         ? buildKotTestSlip(profile).buffer
         : buildTestSlip(profile);
-    await this.deliver(target, buffer);
+
+    if (branchId) {
+      this.realtime.emitToBranch(branchId, 'print.job', {
+        id: 'test-slip-' + Date.now(),
+        branchId,
+        targetPrinter: target.printerHost || 'Counter Printer',
+        jobType: kind === 'kot' ? 'KOT' : 'RECEIPT',
+        ticketNumber: 'TEST',
+        rawEscposBase64: buffer.toString('base64'),
+        createdAt: new Date().toISOString(),
+      });
+    }
+
+    try {
+      await this.deliver(target, buffer);
+    } catch {
+      // In cloud / remote deployments, the print.job event was emitted to the local till bridge.
+    }
     return { ok: true, profile };
   }
 

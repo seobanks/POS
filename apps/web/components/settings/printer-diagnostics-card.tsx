@@ -166,9 +166,14 @@ export function PrinterDiagnosticsCard() {
       {branch && (
         <div className="flex flex-col gap-3 rounded-lg border border-border p-3">
           <div className="flex flex-col gap-1.5">
-            <Label>Connection Type</Label>
+            <div className="flex items-center justify-between">
+              <Label>Connection Mode</Label>
+              <span className="text-[11px] font-semibold text-primary uppercase tracking-wide">
+                Multi-Tenant Standard
+              </span>
+            </div>
             <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Printer connection">
-              {(["USB", "NETWORK"] as const).map((c) => (
+              {(["NETWORK", "USB"] as const).map((c) => (
                 <Button
                   key={c}
                   type="button"
@@ -180,48 +185,55 @@ export function PrinterDiagnosticsCard() {
                   onClick={() => save({ printerConnection: c })}
                   className="gap-2"
                 >
-                  {c === "USB" ? (
+                  {c === "NETWORK" ? (
                     <>
-                      <Usb className="h-4 w-4 text-primary" />
-                      <span>USB (Cashier Counter)</span>
+                      <Network className="h-4 w-4 text-primary" />
+                      <span>Network (IP Address / LAN)</span>
                     </>
                   ) : (
                     <>
-                      <Network className="h-4 w-4 text-primary" />
-                      <span>Network (Kitchen LAN / IP)</span>
+                      <Usb className="h-4 w-4 text-primary" />
+                      <span>USB (Direct Local Till)</span>
                     </>
                   )}
                 </Button>
               ))}
             </div>
-            {branch.printerConnection === "USB" ? (
-              <div className="mt-1 rounded-md bg-secondary/50 p-3 text-xs text-muted-foreground flex flex-col gap-1.5 border border-border/60">
+
+            {branch.printerConnection === "NETWORK" ? (
+              <div className="mt-1 rounded-md bg-secondary/50 p-3 text-xs text-muted-foreground flex flex-col gap-1 border border-border/60">
                 <p className="font-semibold text-foreground flex items-center gap-1.5">
-                  <Laptop className="h-3.5 w-3.5 text-primary" />
-                  Cashier Counter Till Setup (RP3160 GOLD):
+                  <Network className="h-3.5 w-3.5 text-primary" />
+                  1-Click Direct Thermal Printing (Port 9100):
                 </p>
                 <p>
-                  Because your TVS printer is plugged directly into this computer via USB cable, it does <strong>not</strong> need an IP address. Make sure <strong>RP3160 GOLD(U) 1</strong> is set as your default printer in Windows!
+                  Enter the local network IP address of your thermal printer (same IP used by your existing POS). When billing, bills will print instantly with <strong>one click</strong> without opening browser print dialogs!
                 </p>
               </div>
             ) : (
-              <p className="text-xs text-muted-foreground">
-                Enter the local IP address of your network thermal printer (e.g. 192.168.1.100 for your kitchen KOT printer).
-              </p>
+              <div className="mt-1 rounded-md bg-secondary/50 p-3 text-xs text-muted-foreground flex flex-col gap-1.5 border border-border/60">
+                <p className="font-semibold text-foreground flex items-center gap-1.5">
+                  <Laptop className="h-3.5 w-3.5 text-primary" />
+                  USB Direct Till Setup:
+                </p>
+                <p>
+                  For till computers with a direct USB thermal printer (e.g. TVS RP3160 Gold).
+                </p>
+              </div>
             )}
           </div>
 
-          {/* Only show IP address and Port when NETWORK connection is chosen */}
+          {/* Network IP Address and Port Inputs */}
           {branch.printerConnection === "NETWORK" && (
             <>
               <div className="grid grid-cols-[1fr_6rem] gap-3">
                 <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="printer-host">Network Printer IP / Host</Label>
+                  <Label htmlFor="printer-host">Printer IP Address</Label>
                   <Input
                     id="printer-host"
                     inputMode="url"
                     autoComplete="off"
-                    placeholder="192.168.1.100"
+                    placeholder="e.g. 192.168.1.100 or 192.168.0.87"
                     value={host ?? branch.printerHost ?? ""}
                     onChange={(e) => setHost(e.target.value)}
                   />
@@ -234,7 +246,7 @@ export function PrinterDiagnosticsCard() {
                     inputMode="numeric"
                     min={1}
                     max={65535}
-                    value={port ?? String(branch.printerPort)}
+                    value={port ?? String(branch.printerPort || 9100)}
                     onChange={(e) => setPort(e.target.value)}
                   />
                 </div>
@@ -250,7 +262,7 @@ export function PrinterDiagnosticsCard() {
                     if (port !== null) dto.printerPort = Number(port);
                     updateBranch.mutate(dto, {
                       onSuccess: () => {
-                        toast.success("Printer address saved");
+                        toast.success("Printer IP address saved!");
                         setHost(null);
                         setPort(null);
                         refetch();
@@ -259,7 +271,7 @@ export function PrinterDiagnosticsCard() {
                     });
                   }}
                 >
-                  Save address
+                  Save Printer Address
                 </Button>
               )}
             </>
@@ -332,24 +344,17 @@ export function PrinterDiagnosticsCard() {
           variant="default"
           size="sm"
           className="gap-2 font-semibold"
-          onClick={() => {
-            printBrowserTestReceipt(branch?.printerPaperWidthMm ?? 80);
-            toast.success("Printing 80mm test receipt to your default Windows printer...");
-          }}
+          disabled={testPrint.isPending}
+          onClick={() =>
+            testPrint.mutate(undefined, {
+              onSuccess: () => toast.success("Test slip sent to printer! Paper should cut."),
+              onError: (err) =>
+                toast.error(err instanceof ApiError ? err.message : "Could not print test slip"),
+            })
+          }
         >
           <Printer className="h-4 w-4" />
-          Print Cashier Test Bill (80mm)
-        </Button>
-
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-2"
-          disabled={pairingUsb}
-          onClick={handlePairWebUsb}
-        >
-          <Usb className="h-4 w-4" />
-          {pairingUsb ? "Pairing…" : "Pair WebUSB (Direct)"}
+          {testPrint.isPending ? "Printing…" : "Send Test Print (1-Click)"}
         </Button>
 
         <Button
@@ -382,6 +387,18 @@ export function PrinterDiagnosticsCard() {
           }
         >
           Open cash drawer
+        </Button>
+
+        <Button
+          variant="ghost"
+          size="sm"
+          className="gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+          onClick={() => {
+            printBrowserTestReceipt(branch?.printerPaperWidthMm ?? 80);
+            toast.success("Printing 80mm test receipt via Windows spooler...");
+          }}
+        >
+          Windows Print Fallback
         </Button>
       </div>
       <p className="text-xs text-muted-foreground">
