@@ -1,13 +1,13 @@
 /**
  * Hanva POS Local Print Bridge
  * ==========================================
- * Cloud-to-LAN 1-Click Silent Thermal Printing Service (Petpooja style).
+ * Cloud-to-LAN Silent Thermal Printing Service (Petpooja style).
  * 
  * Runs as a background service on the restaurant's cashier computer.
  * Connects outbound to the Hanva cloud server via WebSocket.
  * Intercepts realtime print.job events and routes them instantly to:
- *   1. Network Thermal Printers over RAW TCP Port 9100 (LAN / Wi-Fi)
- *   2. Local USB / Windows Default Printer via Windows Print Spooler
+ *   1. Cashier Bill Printer (e.g. RP3160 GOLD(U) 1 via USB / Windows Spooler)
+ *   2. Kitchen KOT Printer(s) (e.g. southindian kot via LAN IP or Windows Spooler)
  * 
  * Works 100% silently with 0 clicks and zero browser popups.
  */
@@ -17,7 +17,8 @@ const path = require('path');
 const net = require('net');
 const http = require('http');
 const https = require('https');
-const { execFile } = require('child_process');
+const { execFile, execSync } = require('child_process');
+const readline = require('readline');
 const os = require('os');
 const { io } = require('socket.io-client');
 
@@ -30,13 +31,14 @@ const DEFAULT_CONFIG = {
   token: '',
   username: '',
   password: '',
-  defaultPrinterIp: '192.168.1.100',
+  billPrinter: '', // e.g. "RP3160 GOLD(U) 1" (Cashier Counter Printer)
+  kotPrinter: '',  // e.g. "southindian kot" or "192.168.1.150" (Kitchen KOT Printer)
+  stationRoutes: {
+    // "Kitchen": "southindian kot",
+    // "Bar": "192.168.1.151"
+  },
   defaultPrinterPort: 9100,
   fallbackToWindowsPrinter: true,
-  windowsPrinterName: '', // empty = OS Default printer
-  stationRoutes: {
-    // e.g. "Kitchen": "192.168.1.200", "Bar": "192.168.1.201"
-  }
 };
 
 function log(msg, ...args) {
@@ -77,6 +79,29 @@ function saveConfig(config) {
 }
 
 /**
+ * Lists all installed Windows printers using PowerShell.
+ */
+function getInstalledWindowsPrinters() {
+  if (process.platform !== 'win32') return [];
+  try {
+    const cmd = `powershell.exe -NoProfile -Command "Get-CimInstance Win32_Printer | Select-Object -Property Name, PortName | ConvertTo-Json"`;
+    const out = execSync(cmd, { timeout: 6000, encoding: 'utf8' }).trim();
+    if (!out) return [];
+    const parsed = JSON.parse(out);
+    const list = Array.isArray(parsed) ? parsed : [parsed];
+    return list.map((p) => ({ name: p.Name, port: p.PortName }));
+  } catch (e) {
+    try {
+      const fallbackCmd = `powershell.exe -NoProfile -Command "Get-CimInstance Win32_Printer | Select-Object -ExpandProperty Name"`;
+      const out = execSync(fallbackCmd, { timeout: 6000, encoding: 'utf8' }).trim();
+      return out.split(/\r?\n/).map((s) => s.trim()).filter(Boolean).map((name) => ({ name, port: '' }));
+    } catch {
+      return [];
+    }
+  }
+}
+
+/**
  * Sends binary ESC/POS buffer over RAW TCP socket to printer IP:port (port 9100).
  */
 function printOverTcp(host, port, data, timeoutMs = 5000) {
@@ -103,9 +128,7 @@ function printOverTcp(host, port, data, timeoutMs = 5000) {
     });
 
     socket.connect(port, host, () => {
-      socket.end(data, () => {
-        // Data flushed
-      });
+      socket.end(data, () => {});
       socket.once('close', () => {
         cleanup(true);
       });
@@ -121,7 +144,7 @@ function printToWindowsSpooler(printerName, data) {
   if (process.platform !== 'win32') {
     return Promise.resolve({
       success: false,
-      error: 'Windows Print Spooler is only available on Windows'
+      error: 'Windows Print Spooler is only available on Windows',
     });
   }
 
@@ -238,7 +261,7 @@ if (-not $ok) {
 /**
  * Builds a sample 80mm ESC/POS test receipt buffer.
  */
-function buildSampleEscPosTestSlip() {
+function buildSampleEscPosTestSlip(title = 'TEST RECEIPT', targetLabel = '') {
   const ESC = 0x1b;
   const GS = 0x1d;
   const parts = [];
@@ -252,26 +275,32 @@ function buildSampleEscPosTestSlip() {
   parts.push(Buffer.from('HANVA POS\n', 'utf8'));
   // Normal text
   parts.push(Buffer.from([GS, 0x21, 0x00]));
-  parts.push(Buffer.from('LOCAL PRINT BRIDGE — TEST SLIP\n', 'utf8'));
+  parts.push(Buffer.from(`${title}\n`, 'utf8'));
   parts.push(Buffer.from('--------------------------------\n', 'utf8'));
   // Align Left
   parts.push(Buffer.from([ESC, 0x61, 0]));
-  parts.push(Buffer.from(`Status:   Bridge Online (Port 9100 / Spooler)\n`, 'utf8'));
+  parts.push(Buffer.from(`Printer:  ${targetLabel || 'Direct Spooler'}\n`, 'utf8'));
   parts.push(Buffer.from(`Host:     ${os.hostname()}\n`, 'utf8'));
   parts.push(Buffer.from(`Time:     ${new Date().toLocaleString()}\n`, 'utf8'));
   parts.push(Buffer.from('--------------------------------\n', 'utf8'));
-  parts.push(Buffer.from('1x Masala Dosa             90.00\n', 'utf8'));
-  parts.push(Buffer.from('1x South Indian Filter     30.00\n', 'utf8'));
-  parts.push(Buffer.from('--------------------------------\n', 'utf8'));
-  // Bold Total
-  parts.push(Buffer.from([ESC, 0x45, 1]));
-  parts.push(Buffer.from('TOTAL AMOUNT              120.00\n', 'utf8'));
-  parts.push(Buffer.from([ESC, 0x45, 0]));
+  if (title.includes('KOT')) {
+    parts.push(Buffer.from('TABLE #12 - DINE IN\n', 'utf8'));
+    parts.push(Buffer.from('2x Masala Dosa (Crispy)\n', 'utf8'));
+    parts.push(Buffer.from('1x South Indian Filter Coffee\n', 'utf8'));
+  } else {
+    parts.push(Buffer.from('1x Masala Dosa             90.00\n', 'utf8'));
+    parts.push(Buffer.from('1x South Indian Filter     30.00\n', 'utf8'));
+    parts.push(Buffer.from('--------------------------------\n', 'utf8'));
+    // Bold Total
+    parts.push(Buffer.from([ESC, 0x45, 1]));
+    parts.push(Buffer.from('TOTAL AMOUNT              120.00\n', 'utf8'));
+    parts.push(Buffer.from([ESC, 0x45, 0]));
+  }
   parts.push(Buffer.from('--------------------------------\n', 'utf8'));
   // Align Center
   parts.push(Buffer.from([ESC, 0x61, 1]));
-  parts.push(Buffer.from('✓ 1-CLICK DIRECT PRINT ACTIVE!\n', 'utf8'));
-  parts.push(Buffer.from('Ready to receive cashier orders.\n\n\n\n', 'utf8'));
+  parts.push(Buffer.from('✓ 1-CLICK DIRECT PRINT VERIFIED!\n', 'utf8'));
+  parts.push(Buffer.from('Ready for live billing.\n\n\n\n', 'utf8'));
   // Auto-Cut Paper (GS V 66 0)
   parts.push(Buffer.from([GS, 0x56, 66, 0]));
 
@@ -279,13 +308,13 @@ function buildSampleEscPosTestSlip() {
 }
 
 /**
- * Authenticates with the Hanva Cloud API to obtain a session token.
+ * Authenticates with the Hanva Cloud API to obtain a session token and auto-fetch branchId.
  */
 async function authenticate(config) {
-  if (config.token) return config.token;
+  if (config.token && config.branchId) return { token: config.token, branchId: config.branchId };
   if (!config.username || !config.password) {
     log('ℹ️ No token or username/password provided in config.json');
-    return null;
+    return { token: null, branchId: config.branchId || null };
   }
 
   log(`🔐 Authenticating with ${config.cloudUrl} as ${config.username}...`);
@@ -311,11 +340,10 @@ async function authenticate(config) {
         (res) => {
           let data = '';
           res.on('data', (chunk) => (data += chunk));
-          res.on('end', () => {
+          res.on('end', async () => {
             try {
               const body = JSON.parse(data);
               let token = body.token;
-              // Extract cookie if returned
               if (!token && res.headers['set-cookie']) {
                 for (const c of res.headers['set-cookie']) {
                   const m = c.match(/nodedr_session=([^;]+)/);
@@ -323,15 +351,20 @@ async function authenticate(config) {
                 }
               }
               if (token) {
-                log('✓ Authenticated successfully!');
-                resolve(token);
+                log('✓ Authenticated successfully with Hanva Cloud!');
+                // Auto-fetch branchId if not in config
+                let branchId = config.branchId;
+                if (!branchId) {
+                  branchId = await fetchDefaultBranch(config.cloudUrl, token);
+                }
+                resolve({ token, branchId });
               } else {
                 log('⚠️ Login response did not contain token:', body.message || data);
-                resolve(null);
+                resolve({ token: null, branchId: null });
               }
             } catch (err) {
               log('⚠️ Login response parse error:', err.message);
-              resolve(null);
+              resolve({ token: null, branchId: null });
             }
           });
         }
@@ -339,13 +372,52 @@ async function authenticate(config) {
 
       req.on('error', (err) => {
         log('⚠️ Authentication network error:', err.message);
-        resolve(null);
+        resolve({ token: null, branchId: null });
       });
 
       req.write(payload);
       req.end();
     } catch (e) {
       log('⚠️ Auth request setup error:', e.message);
+      resolve({ token: null, branchId: null });
+    }
+  });
+}
+
+function fetchDefaultBranch(cloudUrl, token) {
+  return new Promise((resolve) => {
+    try {
+      const url = new URL('/v1/branches', cloudUrl);
+      const client = url.protocol === 'https:' ? https : http;
+      const req = client.request(
+        url,
+        {
+          method: 'GET',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            Cookie: `nodedr_session=${token}`,
+          },
+          timeout: 8000,
+        },
+        (res) => {
+          let data = '';
+          res.on('data', (c) => (data += c));
+          res.on('end', () => {
+            try {
+              const branches = JSON.parse(data);
+              if (Array.isArray(branches) && branches.length > 0) {
+                log(`✓ Auto-selected Branch: ${branches[0].name} (${branches[0].id})`);
+                resolve(branches[0].id);
+                return;
+              }
+            } catch {}
+            resolve(null);
+          });
+        }
+      );
+      req.on('error', () => resolve(null));
+      req.end();
+    } catch {
       resolve(null);
     }
   });
@@ -357,7 +429,8 @@ async function authenticate(config) {
 async function handlePrintJob(job, config) {
   const jobType = job.jobType || 'RECEIPT';
   const ticketNumber = job.ticketNumber || job.id?.slice(0, 8) || 'N/A';
-  log(`📥 Incoming ${jobType} Job #${ticketNumber} (Target: ${job.targetPrinter || 'Default'})`);
+  const station = job.stationName || 'Counter';
+  log(`📥 Incoming ${jobType} #${ticketNumber} (Station: ${station})`);
 
   if (!job.rawEscposBase64) {
     log('⚠️ Job contains no rawEscposBase64 payload, skipping.');
@@ -365,40 +438,59 @@ async function handlePrintJob(job, config) {
   }
 
   const rawBytes = Buffer.from(job.rawEscposBase64, 'base64');
-  let target = job.targetPrinter || config.defaultPrinterIp;
+  let target = '';
 
-  // Check stationRoutes mapping
-  if (config.stationRoutes && job.stationName && config.stationRoutes[job.stationName]) {
-    target = config.stationRoutes[job.stationName];
-  }
-
-  const isIp = /^(\d{1,3}\.){3}\d{1,3}$/.test(target);
-  const startTime = Date.now();
-
-  // Route 1: Direct TCP Port 9100 (Network thermal printer)
-  if (isIp) {
-    const port = config.defaultPrinterPort || 9100;
-    log(`➡️ Sending ${rawBytes.length} bytes to Network Printer at ${target}:${port}...`);
-    const res = await printOverTcp(target, port, rawBytes);
-    const duration = Date.now() - startTime;
-
-    if (res.success) {
-      log(`✅ Successfully printed ${jobType} #${ticketNumber} on ${target}:${port} in ${duration}ms!`);
-      return;
+  // Specific routing logic:
+  if (jobType === 'KOT') {
+    // 1. Station specific route (e.g. config.stationRoutes["Kitchen"] or "southindian kot")
+    if (config.stationRoutes && job.stationName && config.stationRoutes[job.stationName]) {
+      target = config.stationRoutes[job.stationName];
+    } else if (config.kotPrinter) {
+      target = config.kotPrinter;
+    } else if (job.targetPrinter && job.targetPrinter !== 'Default KOT Printer' && job.targetPrinter !== 'Counter Printer') {
+      target = job.targetPrinter;
     } else {
-      log(`❌ Network print to ${target}:${port} failed: ${res.error}`);
+      target = config.kotPrinter || config.billPrinter || '';
+    }
+  } else {
+    // RECEIPT (Customer Bill)
+    if (config.billPrinter) {
+      target = config.billPrinter;
+    } else if (job.targetPrinter && job.targetPrinter !== 'Counter Printer') {
+      target = job.targetPrinter;
+    } else {
+      target = config.billPrinter || '';
     }
   }
 
-  // Route 2: Windows Print Spooler (USB / Default Windows printer fallback)
-  if (config.fallbackToWindowsPrinter && process.platform === 'win32') {
-    const printerName = isIp ? config.windowsPrinterName : target;
-    log(`➡️ Fallback: Sending ${rawBytes.length} bytes to Windows Print Spooler (${printerName || 'Default Printer'})...`);
+  const isIp = /^(\d{1,3}\.){3}\d{1,3}(:\d+)?$/.test(target);
+  const startTime = Date.now();
+
+  // Route A: Network IP Thermal Printer (Port 9100)
+  if (isIp) {
+    const [ip, rawPort] = target.split(':');
+    const port = rawPort ? parseInt(rawPort, 10) : config.defaultPrinterPort || 9100;
+    log(`➡️ [${jobType}] Sending ${rawBytes.length} bytes to Network Printer (${ip}:${port})...`);
+    const res = await printOverTcp(ip, port, rawBytes);
+    const duration = Date.now() - startTime;
+
+    if (res.success) {
+      log(`✅ [${jobType}] Successfully printed #${ticketNumber} on ${ip}:${port} in ${duration}ms!`);
+      return;
+    } else {
+      log(`❌ Network print to ${ip}:${port} failed: ${res.error}`);
+    }
+  }
+
+  // Route B: Windows Print Spooler (Direct to named printer e.g. "RP3160 GOLD(U) 1" or "southindian kot")
+  if (process.platform === 'win32') {
+    const printerName = isIp ? '' : target;
+    log(`➡️ [${jobType}] Sending ${rawBytes.length} bytes to Windows Spooler [${printerName || 'Default Windows Printer'}]...`);
     const res = await printToWindowsSpooler(printerName, rawBytes);
     const duration = Date.now() - startTime;
 
     if (res.success) {
-      log(`✅ Successfully printed ${jobType} #${ticketNumber} via Windows Spooler in ${duration}ms!`);
+      log(`✅ [${jobType}] Successfully printed #${ticketNumber} on [${printerName || 'Default'}] in ${duration}ms!`);
       return;
     } else {
       log(`❌ Windows Spooler print failed: ${res.error}`);
@@ -406,51 +498,157 @@ async function handlePrintJob(job, config) {
   }
 }
 
+/**
+ * Interactive Setup Wizard for Cashier PC
+ */
+async function runSetup() {
+  banner();
+  console.log('--- HANVA POS: 1-MINUTE PRINTER SETUP WIZARD ---\n');
+
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  const question = (query) => new Promise((resolve) => rl.question(query, resolve));
+
+  const currentConfig = loadConfig();
+
+  const cloudUrl = (await question(`Cloud URL [${currentConfig.cloudUrl}]: `)).trim() || currentConfig.cloudUrl;
+  const username = (await question(`Cashier Login Email [${currentConfig.username}]: `)).trim() || currentConfig.username;
+  const password = (await question(`Cashier Password: `)).trim() || currentConfig.password;
+
+  currentConfig.cloudUrl = cloudUrl;
+  currentConfig.username = username;
+  currentConfig.password = password;
+
+  const auth = await authenticate(currentConfig);
+  if (auth.token) {
+    currentConfig.token = auth.token;
+    if (auth.branchId) currentConfig.branchId = auth.branchId;
+    console.log(`✓ Authentication succeeded!\n`);
+  } else {
+    console.log(`⚠️ Login failed, please verify your credentials.\n`);
+  }
+
+  console.log('Detecting installed Windows printers...\n');
+  const printers = getInstalledWindowsPrinters();
+
+  console.log('Available Printers on this PC:');
+  printers.forEach((p, idx) => {
+    console.log(`  [${idx + 1}] ${p.name} ${p.port ? `(${p.port})` : ''}`);
+  });
+  console.log(`  [M] Enter IP address manually (e.g. 192.168.1.150)\n`);
+
+  // Choose Bill Printer
+  let billChoice = await question(`Select CASHIER BILL PRINTER (number or M) [Default: 1]: `);
+  billChoice = billChoice.trim();
+  let billPrinter = currentConfig.billPrinter;
+  if (!billChoice && printers.length > 0) {
+    billPrinter = printers[0].name;
+  } else if (billChoice.toUpperCase() === 'M') {
+    billPrinter = (await question(`Enter Cashier Printer IP address: `)).trim();
+  } else {
+    const idx = parseInt(billChoice, 10) - 1;
+    if (printers[idx]) billPrinter = printers[idx].name;
+  }
+
+  // Choose KOT Printer
+  let kotChoice = await question(`Select KITCHEN KOT PRINTER (number or M) [Default: 2 or same]: `);
+  kotChoice = kotChoice.trim();
+  let kotPrinter = currentConfig.kotPrinter;
+  if (!kotChoice && printers.length > 1) {
+    kotPrinter = printers[1].name;
+  } else if (kotChoice.toUpperCase() === 'M') {
+    kotPrinter = (await question(`Enter Kitchen Printer IP address: `)).trim();
+  } else {
+    const idx = parseInt(kotChoice, 10) - 1;
+    if (printers[idx]) kotPrinter = printers[idx].name;
+    else if (!kotPrinter) kotPrinter = billPrinter;
+  }
+
+  currentConfig.billPrinter = billPrinter;
+  currentConfig.kotPrinter = kotPrinter;
+  currentConfig.stationRoutes = {
+    Kitchen: kotPrinter,
+  };
+
+  saveConfig(currentConfig);
+
+  console.log('\n======================================================');
+  console.log(`✓ SETUP COMPLETE!`);
+  console.log(`  Cashier Bill Printer:  ${billPrinter}`);
+  console.log(`  Kitchen KOT Printer:   ${kotPrinter}`);
+  console.log('======================================================\n');
+
+  const testNow = (await question(`Send test slip to both printers now? (Y/n): `)).trim().toLowerCase();
+  rl.close();
+
+  if (testNow !== 'n') {
+    await runTest(currentConfig);
+  }
+
+  console.log('\nStarting print bridge...');
+  await startBridge();
+}
+
 async function runTest(config) {
   banner();
-  log('🧪 Running Print Bridge Self-Test Slip...');
-  const testData = buildSampleEscPosTestSlip();
+  log('🧪 Running Print Bridge Self-Test on configured printers...\n');
 
-  if (config.defaultPrinterIp && /^(\d{1,3}\.){3}\d{1,3}$/.test(config.defaultPrinterIp)) {
-    log(`➡️ Testing Network Printer at ${config.defaultPrinterIp}:${config.defaultPrinterPort || 9100}...`);
-    const res = await printOverTcp(config.defaultPrinterIp, config.defaultPrinterPort || 9100, testData);
-    if (res.success) {
-      log(`✅ TEST PRINT SUCCEEDED on ${config.defaultPrinterIp}! Paper should be cut.`);
-      process.exit(0);
+  // Test Cashier Printer
+  if (config.billPrinter) {
+    log(`➡️ Testing Cashier Bill Printer: [${config.billPrinter}]...`);
+    const billTest = buildSampleEscPosTestSlip('CASHIER BILL TEST', config.billPrinter);
+    if (/^(\d{1,3}\.){3}\d{1,3}/.test(config.billPrinter)) {
+      const [ip, p] = config.billPrinter.split(':');
+      await printOverTcp(ip, p ? parseInt(p, 10) : 9100, billTest);
     } else {
-      log(`❌ Network test failed: ${res.error}`);
+      await printToWindowsSpooler(config.billPrinter, billTest);
     }
+    log(`✓ Cashier Printer test job sent! Paper should print & cut.\n`);
   }
 
-  if (process.platform === 'win32') {
-    log(`➡️ Testing Windows Print Spooler (${config.windowsPrinterName || 'Default'})...`);
-    const res = await printToWindowsSpooler(config.windowsPrinterName, testData);
-    if (res.success) {
-      log(`✅ TEST PRINT SUCCEEDED via Windows Print Spooler!`);
-      process.exit(0);
+  // Test Kitchen Printer
+  if (config.kotPrinter && config.kotPrinter !== config.billPrinter) {
+    log(`➡️ Testing Kitchen KOT Printer: [${config.kotPrinter}]...`);
+    const kotTest = buildSampleEscPosTestSlip('KITCHEN KOT TEST', config.kotPrinter);
+    if (/^(\d{1,3}\.){3}\d{1,3}/.test(config.kotPrinter)) {
+      const [ip, p] = config.kotPrinter.split(':');
+      await printOverTcp(ip, p ? parseInt(p, 10) : 9100, kotTest);
     } else {
-      log(`❌ Windows spooler test failed: ${res.error}`);
+      await printToWindowsSpooler(config.kotPrinter, kotTest);
     }
+    log(`✓ Kitchen Printer test job sent! Paper should print & cut.\n`);
   }
-
-  process.exit(1);
 }
 
 async function startBridge() {
   banner();
   const config = loadConfig();
 
+  if (process.argv.includes('--setup')) {
+    return runSetup();
+  }
+
   if (process.argv.includes('--test')) {
     return runTest(config);
   }
 
-  log(`Connecting to Cloud Server: ${config.cloudUrl}`);
-  log(`Default Printer IP:         ${config.defaultPrinterIp}:${config.defaultPrinterPort || 9100}`);
-  log(`Windows Spooler Fallback:   ${config.fallbackToWindowsPrinter ? 'ENABLED' : 'DISABLED'}`);
+  if (!config.billPrinter && !config.kotPrinter && process.platform === 'win32') {
+    console.log('⚠️ Printers not yet configured in config.json.');
+    console.log('Launching interactive setup wizard...\n');
+    return runSetup();
+  }
 
-  const token = await authenticate(config);
-  if (token) {
-    config.token = token;
+  log(`Cloud Gateway:       ${config.cloudUrl}`);
+  log(`Cashier Bill Printer: [${config.billPrinter || 'Default'}]`);
+  log(`Kitchen KOT Printer:  [${config.kotPrinter || 'Default'}]`);
+
+  const auth = await authenticate(config);
+  if (auth.token) {
+    config.token = auth.token;
+    if (auth.branchId) config.branchId = auth.branchId;
     saveConfig(config);
   }
 
@@ -473,7 +671,7 @@ async function startBridge() {
 
   socket.on('connect', () => {
     log('🟢 [ONLINE] Connected to Hanva POS Cloud Realtime Gateway!');
-    log(`📡 Listening for print jobs on Branch: ${config.branchId || 'All Branches'}...`);
+    log(`📡 Listening for print jobs (KOTs from Captains & Bills from Cashier)...`);
   });
 
   socket.on('disconnect', (reason) => {
@@ -495,9 +693,13 @@ async function startBridge() {
   // Keep-alive heartbeat log every 10 minutes
   setInterval(() => {
     if (socket.connected) {
-      log('💚 Heartbeat: Print Bridge active and ready for orders.');
+      log('💚 Heartbeat: Print Bridge active and listening for live orders.');
     }
   }, 10 * 60 * 1000);
 }
 
-startBridge();
+if (process.argv.includes('--setup')) {
+  runSetup();
+} else {
+  startBridge();
+}

@@ -1,71 +1,58 @@
 # Hanva POS — Local Print Bridge 🖨️
-> **Cloud-to-LAN 1-Click Silent Thermal Printer Service (Petpooja Style)**
+> **Cloud-to-LAN Silent Multi-Printer Service (Petpooja Style)**
 
-This lightweight utility runs in the background on the cashier's computer. It connects to your cloud-hosted Hanva POS server (`https://api.hanva.in`) and automatically routes print jobs to thermal printers on your restaurant's local Wi-Fi or USB.
+This lightweight utility runs in the background on the cashier's computer. It connects to your cloud-hosted Hanva POS (`https://api.hanva.in`) and automatically routes print jobs to multiple printers on your local network or USB:
+* **Cashier Bills** ➔ Sent directly to your Counter Printer (e.g. `RP3160 GOLD(U) 1` via USB).
+* **Kitchen KOTs** ➔ Sent directly to your Kitchen Printer (e.g. `southindian kot` via LAN IP or USB).
+* **Captain Apps** ➔ When any captain takes an order on their phone, the KOT prints **instantly in the kitchen**!
 
 ---
 
-## ⚡ How It Works
+## ⚡ How It Works (Petpooja Style)
 
 ```
-[ Cloud Server (pos.hanva.in) ]
-               │ (Outbound WebSocket)
-               ▼
-[ Local Print Bridge (Cashier PC) ] 
-               │
-       ┌───────┴────────────────────────┐
-       ▼                                ▼
-[ Network LAN / Wi-Fi ]       [ Windows USB Spooler ]
-  192.168.1.x:9100              winspool.drv / USB
- (Kitchen KOT / Counter)      (Counter Bill Printer)
+[ Captain's Phone / Mobile App ]
+             │ (Punch Order)
+             ▼
+[ Hanva Cloud (api.hanva.in) ]
+             │ (Realtime WebSocket)
+             ▼
+[ Hanva Print Bridge (Cashier PC) ]
+             │
+     ┌───────┴────────────────────────┐
+     ▼                                ▼
+[ Cashier USB Printer ]     [ Kitchen KOT Printer ]
+  "RP3160 GOLD(U) 1"           "southindian kot"
+  Customer Bills              Auto-prints Captain KOTs
 ```
 
-1. **Pure Cloud Architecture:** Your software stays 100% hosted in the cloud.
-2. **Zero Inbound Port Forwarding Needed:** The bridge connects **outbound** from the restaurant to the cloud, bypassing NAT and router firewalls automatically.
-3. **1-Click Silent Printing:** In under 40 milliseconds, customer receipts and kitchen KOT tickets print and auto-cut without opening any browser dialogs.
+1. **No Default Printer Limitation:** You do NOT need to set either printer as the Windows Default. The bridge sends jobs directly to each named printer.
+2. **Instant Automatic KOTs:** When a Captain takes an order on their phone, the kitchen printer prints the KOT within 50ms automatically — cashiers don't need to click anything.
+3. **Outbound Connection:** No router port forwarding or static public IPs needed.
 
 ---
 
-## 🚀 Quick Setup (2 Minutes)
+## 🚀 Step-by-Step Setup (1 Minute)
 
-### Step 1: Configuration (`config.json`)
-Copy `config.example.json` to `config.json` and enter your details:
+### Step 1: Run the Setup Wizard
+On the cashier Windows PC, double-click **`setup.bat`**.
 
-```json
-{
-  "cloudUrl": "https://api.hanva.in",
-  "branchId": "YOUR_BRANCH_ID",
-  "username": "cashier@restaurant.com",
-  "password": "yourpassword",
-  "defaultPrinterIp": "192.168.1.87",
-  "defaultPrinterPort": 9100,
-  "fallbackToWindowsPrinter": true,
-  "windowsPrinterName": ""
-}
-```
-
-* **`defaultPrinterIp`**: The local IP address of your printer (e.g. `192.168.1.87`).
-* **`defaultPrinterPort`**: Standard ESC/POS raw port (`9100`).
-* **`fallbackToWindowsPrinter`**: If `true`, on Windows it can also print directly to any USB or default Windows printer queue silently.
+It will ask you:
+1. Your Hanva POS Cashier login (Email & Password)
+2. Automatically show all detected printers on the PC:
+   ```
+   [1] RP3160 GOLD(U) 1
+   [2] southindian kot
+   ```
+3. Select which one is for **Cashier Bills** (e.g. `1`)
+4. Select which one is for **Kitchen KOTs** (e.g. `2`)
+5. It will send a test slip to both printers and save `config.json` automatically!
 
 ---
 
-### Step 2: Start the Bridge
+### Step 2: Keep it Running
+Double-click **`start-bridge.bat`**.
 
-* **On Windows:** Double-click **`start-bridge.bat`**.
-* **On macOS / Linux:**
-  ```bash
-  npm install
-  npm start
-  ```
+Whenever this is running, all bills and KOTs print silently in under 0.1 seconds!
 
----
-
-### Step 3: Test Print
-To verify that the bridge can speak to your thermal printer immediately:
-* **On Windows:** Double-click **`test-print.bat`**.
-* **Or run:**
-  ```bash
-  node bridge.js --test
-  ```
-The printer will immediately print a sample test slip and cut the paper!
+> **Tip (Windows Startup):** Press `Win + R`, type `shell:startup`, and drop a shortcut to `start-bridge.bat` there so it starts automatically whenever the computer turns on.
