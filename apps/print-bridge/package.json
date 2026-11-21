@@ -1,0 +1,15 @@
+{
+  "name": "@hanva/print-bridge",
+  "version": "1.0.0",
+  "description": "Hanva POS Local Print Bridge - Cloud-to-LAN 1-Click Silent Thermal Printer Service (Petpooja Style)",
+  "main": "bridge.js",
+  "scripts": {
+    "start": "node bridge.js",
+    "test-print": "node bridge.js --test"
+  },
+  "dependencies": {
+    "socket.io-client": "^4.8.1"
+  },
+  "author": "Hanva Technologies",
+  "license": "UNLICENSED"
+}

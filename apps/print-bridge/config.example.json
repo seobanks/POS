@@ -1,0 +1,14 @@
+{
+  "cloudUrl": "https://api.hanva.in",
+  "branchId": "YOUR_BRANCH_ID_HERE",
+  "username": "cashier@restaurant.com",
+  "password": "yourpassword",
+  "defaultPrinterIp": "192.168.1.87",
+  "defaultPrinterPort": 9100,
+  "fallbackToWindowsPrinter": true,
+  "windowsPrinterName": "",
+  "stationRoutes": {
+    "Kitchen": "192.168.1.100",
+    "Bar": "192.168.1.101"
+  }
+}

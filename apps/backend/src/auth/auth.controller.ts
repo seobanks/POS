@@ -91,7 +91,7 @@ export class AuthController {
   ) {
     const { token, user } = await this.authService.login(body as never);
     this.setSessionCookie(res, token);
-    return { user };
+    return { user, token };
   }
 
   // Much tighter than login: a PIN is a short numeric secret (4-8 digits,
@@ -109,7 +109,7 @@ export class AuthController {
   ) {
     const { token, user } = await this.authService.pinLogin(body as never);
     this.setSessionCookie(res, token);
-    return { user };
+    return { user, token };
   }
 
   @Throttle({ default: { limit: 5, ttl: 60_000 } })

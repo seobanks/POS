@@ -55,8 +55,15 @@ export class RealtimeGateway
   // fails either check is disconnected before joining any room.
   async handleConnection(client: Socket) {
     try {
-      const token = this.extractSessionCookie(client);
-      if (!token) throw new Error('No session cookie');
+      let token = this.extractSessionCookie(client);
+      if (!token) {
+        token =
+          (client.handshake.auth?.token as string) ||
+          (client.handshake.headers.authorization?.replace(/^Bearer\s+/i, '')) ||
+          (client.handshake.query?.token as string) ||
+          null;
+      }
+      if (!token) throw new Error('No session cookie or auth token provided');
 
       const payload = this.jwt.verify<{ sub: string }>(token);
       const user = await this.prisma.user.findUnique({
@@ -64,7 +71,9 @@ export class RealtimeGateway
       });
       if (!user || !user.isActive) throw new Error('Session no longer valid');
 
-      const branchId = client.handshake.query.branchId;
+      const branchId =
+        (client.handshake.query?.branchId as string) ||
+        (client.handshake.auth?.branchId as string);
       if (typeof branchId !== 'string' || !branchId) {
         throw new Error('Missing branchId');
       }
