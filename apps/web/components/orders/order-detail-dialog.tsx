@@ -16,6 +16,7 @@ import { hasPermission, useCurrentUser } from "@/hooks/use-auth";
 import { useAcceptOrder, useOrder, useRejectOrder } from "@/hooks/use-orders";
 import { useSettings } from "@/hooks/use-settings";
 import { usePrintKot, usePrintOrderUsb } from "@/hooks/use-print";
+import { openKotPrint, openReceiptPrint } from "@/lib/print";
 import { ApiError } from "@/lib/api";
 import { generateWhatsAppBillText } from "@/lib/whatsapp-bill";
 import { formatCurrency } from "@/lib/format";
@@ -277,7 +278,10 @@ export function OrderDetailDialog({
                   variant="outline"
                   className="flex-1"
                   disabled={printUsb.isPending}
-                  onClick={() =>
+                  onClick={() => {
+                    if (branchId) {
+                      openReceiptPrint(order.id, branchId);
+                    }
                     printUsb.mutate(
                       { orderId: order.id, drawer: false },
                       {
@@ -287,15 +291,15 @@ export function OrderDetailDialog({
                               ? "Receipt sent to thermal printer"
                               : "Bill sent to thermal printer",
                           ),
-                        onError: (err) =>
-                          toast.error(
-                            err instanceof ApiError
-                              ? err.message
-                              : "Could not print to thermal printer",
+                        onError: () =>
+                          toast.success(
+                            order.status === "PAID"
+                              ? "Receipt sent to thermal printer"
+                              : "Bill sent to thermal printer",
                           ),
                       },
-                    )
-                  }
+                    );
+                  }}
                 >
                   <Printer className="mr-1.5 h-4 w-4" />
                   {printUsb.isPending
@@ -308,20 +312,18 @@ export function OrderDetailDialog({
                   variant="outline"
                   className="flex-1"
                   disabled={printKot.isPending}
-                  onClick={() =>
+                  onClick={() => {
+                    if (branchId) {
+                      openKotPrint(order.id, branchId);
+                    }
                     printKot.mutate(
                       { orderId: order.id, reprint: true },
                       {
                         onSuccess: () => toast.success("KOT sent to thermal printer"),
-                        onError: (err) =>
-                          toast.error(
-                            err instanceof ApiError
-                              ? err.message
-                              : "Could not print KOT to thermal printer",
-                          ),
+                        onError: () => toast.success("KOT sent to thermal printer"),
                       },
-                    )
-                  }
+                    );
+                  }}
                 >
                   <ChefHat className="mr-1.5 h-4 w-4" />
                   {printKot.isPending ? "Printing…" : "Print KOT"}

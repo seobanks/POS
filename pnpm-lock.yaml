@@ -353,6 +353,12 @@ importers:
         specifier: ^8.67.0
         version: 8.67.0(eslint@9.39.5(jiti@2.7.0))(typescript@5.9.3)
 
+  apps/print-bridge:
+    dependencies:
+      socket.io-client:
+        specifier: ^4.8.1
+        version: 4.8.3
+
   apps/web:
     dependencies:
       '@base-ui/react':

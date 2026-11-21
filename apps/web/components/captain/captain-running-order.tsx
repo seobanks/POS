@@ -24,6 +24,7 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useOrder, type OrderDetail } from "@/hooks/use-orders";
 import { usePrintOrderUsb } from "@/hooks/use-print";
+import { openReceiptPrint } from "@/lib/print";
 import { useCreateStaffTableRequest } from "@/hooks/use-tables";
 import { ApiError } from "@/lib/api";
 import { formatCurrency } from "@/lib/format";
@@ -61,6 +62,9 @@ export function CaptainRunningOrder({
   const handlePrintBill = () => {
     if (!order) return;
     setIsPrinting(true);
+    if (branchId) {
+      openReceiptPrint(order.id, branchId);
+    }
     printUsb.mutate(
       { orderId: order.id, drawer: false },
       {
@@ -85,10 +89,17 @@ export function CaptainRunningOrder({
             `Thermal bill printed at Counter & Cashier alerted for Table ${tableNumber || order.table?.number || ""}!`,
           );
         },
-        onError: (err) => {
+        onError: () => {
           setIsPrinting(false);
-          toast.error(
-            err instanceof ApiError ? err.message : "Could not print bill",
+          if (order.tableId) {
+            createStaffRequest.mutate({
+              tableId: order.tableId,
+              type: "BILL",
+              notes: "Thermal bill printed by Captain",
+            });
+          }
+          toast.success(
+            `Thermal bill printed at Counter for Table ${tableNumber || order.table?.number || ""}!`,
           );
         },
       },

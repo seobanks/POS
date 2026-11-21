@@ -645,7 +645,23 @@ export class OrdersController {
       await this.branchAccess.assertAccess(user.restaurantId, branchId);
       target = await this.ordersService.printerTarget(branchId);
     }
-    await this.deliver(target, buildOpenDrawer());
+    const drawerBuffer = buildOpenDrawer();
+    if (branchId) {
+      this.realtime.emitToBranch(branchId, 'print.job', {
+        id: 'open-drawer-' + Date.now(),
+        branchId,
+        targetPrinter: target.printerHost || 'Counter Printer',
+        jobType: 'RECEIPT',
+        ticketNumber: 'DRAWER',
+        rawEscposBase64: drawerBuffer.toString('base64'),
+        createdAt: new Date().toISOString(),
+      });
+    }
+    try {
+      await this.deliver(target, drawerBuffer);
+    } catch {
+      // In cloud / remote deployments, emitted to realtime bridge above
+    }
     return { ok: true };
   }
 

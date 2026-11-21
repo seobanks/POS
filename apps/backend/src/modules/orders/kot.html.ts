@@ -84,7 +84,12 @@ export function buildKotHtml({
 </head>
 <body>
   <script>
-    window.addEventListener('message', function (e) { if (e.data === 'print') window.print(); });
+    window.addEventListener('message', function (e) { if (e.data === 'print') { window.focus(); window.print(); } });
+    window.addEventListener('load', function () {
+      setTimeout(function () {
+        try { window.focus(); window.print(); } catch (e) {}
+      }, 100);
+    });
   </script>
   <div class="kot">
     <h1>Kitchen order</h1>

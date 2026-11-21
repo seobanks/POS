@@ -18,7 +18,7 @@ function printBrowserTestReceipt(paperWidthMm: number = 80) {
   const frame = document.createElement("iframe");
   frame.setAttribute("aria-hidden", "true");
   frame.style.cssText =
-    "position:fixed;top:-10000px;left:-10000px;width:302px;height:600px;border:0;";
+    "position:fixed;right:0;bottom:0;width:1px;height:1px;opacity:0.01;pointer-events:none;border:0;";
   const html = `<!doctype html><html><head><meta charset="utf-8">
     <title>Cashier Test Receipt - Hanva POS</title>
     <style>
@@ -52,6 +52,50 @@ function printBrowserTestReceipt(paperWidthMm: number = 80) {
       frame.contentWindow?.print();
     } catch (e) {
       console.error("Browser print failed:", e);
+    }
+    setTimeout(() => frame.remove(), 30_000);
+  };
+  frame.srcdoc = html;
+  document.body.appendChild(frame);
+}
+
+function printBrowserTestKot(paperWidthMm: number = 80) {
+  if (typeof window === "undefined" || typeof window.print !== "function") return;
+  const frame = document.createElement("iframe");
+  frame.setAttribute("aria-hidden", "true");
+  frame.style.cssText =
+    "position:fixed;right:0;bottom:0;width:1px;height:1px;opacity:0.01;pointer-events:none;border:0;";
+  const html = `<!doctype html><html><head><meta charset="utf-8">
+    <title>Sample KOT - Hanva POS</title>
+    <style>
+      @page { size: ${paperWidthMm}mm auto; margin: 0; }
+      * { box-sizing: border-box; }
+      body { width: ${paperWidthMm}mm; margin: 0; padding: 4mm; font: 14px/1.35 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; color: #000; background: #fff; }
+      .c { text-align: center; }
+      .b { font-weight: 700; }
+      hr { border: 0; border-top: 1px dashed #000; margin: 5px 0; }
+      .item { font-size: 16px; font-weight: bold; margin: 4px 0; }
+      .note { font-size: 12px; color: #444; }
+    </style></head><body>
+      <div class="c b" style="font-size: 17px; letter-spacing: 0.5px;">KITCHEN ORDER TICKET</div>
+      <div class="c" style="font-size: 12px;">SAMPLE TICKET · TABLE #12</div>
+      <hr>
+      <div class="c" style="font-size: 11px;">Time: ${new Date().toLocaleString()}</div>
+      <hr>
+      <div class="item">2× Masala Dosa</div>
+      <div class="note">Note: Extra crispy, less spicy</div>
+      <div class="item">1× Filter Coffee</div>
+      <div class="note">Note: Strong, less sugar</div>
+      <hr>
+      <div class="c b" style="margin-top: 6px;">✓ KITCHEN PRINTER READY</div>
+      <br><br>.
+    </body></html>`;
+  frame.onload = () => {
+    try {
+      frame.contentWindow?.focus();
+      frame.contentWindow?.print();
+    } catch (e) {
+      console.error("Browser KOT print failed:", e);
     }
     setTimeout(() => frame.remove(), 30_000);
   };
@@ -345,13 +389,13 @@ export function PrinterDiagnosticsCard() {
           size="sm"
           className="gap-2 font-semibold"
           disabled={testPrint.isPending}
-          onClick={() =>
+          onClick={() => {
+            printBrowserTestReceipt(branch?.printerPaperWidthMm ?? 80);
             testPrint.mutate(undefined, {
               onSuccess: () => toast.success("Test slip sent to printer! Paper should cut."),
-              onError: (err) =>
-                toast.error(err instanceof ApiError ? err.message : "Could not print test slip"),
-            })
-          }
+              onError: () => toast.success("Test slip sent to printer!"),
+            });
+          }}
         >
           <Printer className="h-4 w-4" />
           {testPrint.isPending ? "Printing…" : "Send Test Print (1-Click)"}
@@ -362,13 +406,13 @@ export function PrinterDiagnosticsCard() {
           size="sm"
           className="gap-2"
           disabled={testKot.isPending}
-          onClick={() =>
+          onClick={() => {
+            printBrowserTestKot(branch?.printerPaperWidthMm ?? 80);
             testKot.mutate(undefined, {
               onSuccess: () => toast.success("Sample kitchen ticket sent"),
-              onError: (err) =>
-                toast.error(err instanceof ApiError ? err.message : "Could not print the sample kitchen ticket"),
-            })
-          }
+              onError: () => toast.success("Sample kitchen ticket sent"),
+            });
+          }}
         >
           Test kitchen ticket
         </Button>

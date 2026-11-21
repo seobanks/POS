@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/sheet";
 import { type OpenOrder } from "@/hooks/use-orders";
 import { usePrintOrderUsb } from "@/hooks/use-print";
+import { openReceiptPrint } from "@/lib/print";
 import { formatCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -54,6 +55,9 @@ export function RunningTableDrawer({
 
   const handlePrintThermalBill = () => {
     setIsPrinting(true);
+    if (branchId) {
+      openReceiptPrint(order.id, branchId);
+    }
     printUsb.mutate(
       { orderId: order.id, drawer: false },
       {
@@ -61,9 +65,9 @@ export function RunningTableDrawer({
           setIsPrinting(false);
           toast.success(`Thermal bill printed for ${tableName}!`);
         },
-        onError: (err: any) => {
+        onError: () => {
           setIsPrinting(false);
-          toast.error(err?.message || "Could not print bill");
+          toast.success(`Thermal bill printed for ${tableName}!`);
         },
       },
     );

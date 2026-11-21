@@ -296,7 +296,12 @@ export function buildReceiptHtml({
 </head>
 <body>
   <script>
-    window.addEventListener('message', function (e) { if (e.data === 'print') window.print(); });
+    window.addEventListener('message', function (e) { if (e.data === 'print') { window.focus(); window.print(); } });
+    window.addEventListener('load', function () {
+      setTimeout(function () {
+        try { window.focus(); window.print(); } catch (e) {}
+      }, 100);
+    });
   </script>
   <div class="receipt">
     ${logoUrl ? `<div class="center" style="margin-bottom: 4px;"><img src="${esc(logoUrl)}" alt="Logo" style="max-height: 48px; max-width: 140px; object-fit: contain; filter: grayscale(100%) contrast(150%);" /></div>` : ''}

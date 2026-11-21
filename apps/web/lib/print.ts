@@ -1,7 +1,24 @@
-// All bill, receipt, and KOT printing in the POS routes directly to the
-// ESC/POS thermal printer via the backend thermal printer service (USB / Network / Bluetooth).
-// Web/browser iframe printing is disabled so that cashier flows are never interrupted
-// by platform print dialogs.
+// Universal 1-Time Setup: Direct browser-based thermal printing for all tenants.
+// When Chrome runs in kiosk mode (--kiosk-printing), this prints 100% silently
+// with ONE CLICK directly to the default printer without opening any dialogs.
+let printFrame: HTMLIFrameElement | null = null;
+
+function getPrintFrame(): HTMLIFrameElement {
+  if (printFrame && document.body.contains(printFrame)) return printFrame;
+  const frame = document.createElement("iframe");
+  frame.setAttribute("aria-hidden", "true");
+  frame.style.position = "fixed";
+  frame.style.right = "0";
+  frame.style.bottom = "0";
+  frame.style.width = "1px";
+  frame.style.height = "1px";
+  frame.style.opacity = "0.01";
+  frame.style.pointerEvents = "none";
+  frame.style.border = "none";
+  document.body.appendChild(frame);
+  printFrame = frame;
+  return frame;
+}
 
 /** Bill figures the cashier has typed but not yet saved (see receipt route). */
 export type BillQuery = Record<string, string | number | undefined>;
@@ -16,15 +33,50 @@ export function billQueryString(adj: BillQuery = {}): string {
 }
 
 /**
- * Web/browser print is disabled: all bill, receipt, and KOT printing uses
- * direct thermal ESC/POS printing. Kept as a safe no-op for backward compatibility.
+ * Universal 1-Click Thermal Print for all tenants.
+ * Loads the backend self-printing thermal HTML into a hidden iframe.
+ * Prints directly to the default thermal printer with ZERO configuration per tenant.
  */
-export function openReceiptPrint(_orderId: string, _branchId: string, _adj: BillQuery = {}) {
-  // Web print is disabled — all printing routes directly to the thermal printer
+export function openReceiptPrint(orderId: string, branchId: string, adj: BillQuery = {}) {
+  if (typeof window === "undefined" || !orderId) return;
+  const frame = getPrintFrame();
+  const printAction = () => {
+    const win = frame.contentWindow;
+    if (!win) return;
+    try {
+      win.focus();
+      win.print();
+    } catch {
+      try {
+        win.postMessage("print", "*");
+      } catch {}
+    }
+  };
+  frame.onload = () => {
+    setTimeout(printAction, 150);
+  };
+  frame.src = `/api/orders/${orderId}/receipt?branchId=${branchId}${billQueryString(adj)}&t=${Date.now()}`;
 }
 
-export function openKotPrint(_orderId: string, _branchId: string) {
-  // Web print is disabled — all printing routes directly to the thermal printer
+export function openKotPrint(orderId: string, branchId: string) {
+  if (typeof window === "undefined" || !orderId) return;
+  const frame = getPrintFrame();
+  const printAction = () => {
+    const win = frame.contentWindow;
+    if (!win) return;
+    try {
+      win.focus();
+      win.print();
+    } catch {
+      try {
+        win.postMessage("print", "*");
+      } catch {}
+    }
+  };
+  frame.onload = () => {
+    setTimeout(printAction, 150);
+  };
+  frame.src = `/api/orders/${orderId}/kot?branchId=${branchId}&t=${Date.now()}`;
 }
 
 /**

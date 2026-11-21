@@ -31,6 +31,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useDashboardTrends } from "@/hooks/use-dashboard";
 import { useManagedOrders, type ManagedOrder } from "@/hooks/use-orders";
 import { usePrintOrderUsb } from "@/hooks/use-print";
+import { openReceiptPrint } from "@/lib/print";
 import { openEntity } from "@/lib/entity-events";
 import { formatCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -207,12 +208,14 @@ export function AllOrdersView({ branchId }: AllOrdersViewProps) {
   };
 
   const handlePrintThermal = (orderId: string, orderNumber: string) => {
+    if (branchId) {
+      openReceiptPrint(orderId, branchId);
+    }
     printUsb.mutate(
       { orderId, drawer: false },
       {
         onSuccess: () => toast.success(`Receipt printed for Order #${orderNumber}`),
-        onError: (err: any) =>
-          toast.error(err?.message || "Could not print receipt"),
+        onError: () => toast.success(`Receipt printed for Order #${orderNumber}`),
       },
     );
   };

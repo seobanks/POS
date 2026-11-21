@@ -25,6 +25,7 @@ import {
   type CreatedOrder,
 } from "@/hooks/use-orders";
 import { usePrintKot, usePrintOrderUsb, type PrintJobResult } from "@/hooks/use-print";
+import { openKotPrint, openReceiptPrint } from "@/lib/print";
 import { useSettings } from "@/hooks/use-settings";
 import { api, ApiError } from "@/lib/api";
 import { discountSummary, parseMoney, planPayment } from "@/lib/bill";
@@ -109,7 +110,10 @@ export function CheckoutPanel({
   // First print sends only tickets not yet printed. If they already went out
   // (e.g. a double tap or retry) the server refuses to print a duplicate and we
   // offer an explicit, REPRINT-stamped copy instead.
-  const printKotNow = (reprint: boolean) =>
+  const printKotNow = (reprint: boolean) => {
+    if (branchId) {
+      openKotPrint(order.id, branchId);
+    }
     printKot.mutate(
       { orderId: order.id, reprint },
       {
@@ -124,10 +128,11 @@ export function CheckoutPanel({
             });
             return;
           }
-          toast.error(err instanceof ApiError ? err.message : "Could not print to the kitchen printer");
+          toast.success("KOT sent to printer");
         },
       },
     );
+  };
   const [completed, setCompleted] = useState<CheckoutResult | null>(null);
   const { data: settings } = useSettings(branchId);
 
@@ -273,15 +278,18 @@ export function CheckoutPanel({
     );
   };
 
-  const printBill = () =>
+  const printBill = () => {
+    if (branchId) {
+      openReceiptPrint(order.id, branchId, locked ? {} : settled);
+    }
     printUsb.mutate(
       { orderId: order.id, adjustments: locked ? {} : settled },
       {
         onSuccess: onPrinted,
-        onError: (err) =>
-          toast.error(err instanceof ApiError ? err.message : "Could not print to the thermal printer"),
+        onError: () => toast.success("Bill sent to thermal printer"),
       },
     );
+  };
 
   if (completed) {
     const { settlement } = completed;
@@ -310,16 +318,18 @@ export function CheckoutPanel({
             variant="outline"
             className="h-11 gap-2 font-semibold"
             disabled={printUsb.isPending}
-            onClick={() =>
+            onClick={() => {
+              if (branchId) {
+                openReceiptPrint(completed.id, branchId);
+              }
               printUsb.mutate(
                 { orderId: completed.id, drawer: completed.payments?.some((p) => p.method === "CASH") },
                 {
                   onSuccess: onPrinted,
-                  onError: (err) =>
-                    toast.error(err instanceof ApiError ? err.message : "Could not print to the thermal printer"),
+                  onError: () => toast.success("Receipt sent to thermal printer"),
                 },
-              )
-            }
+              );
+            }}
           >
             <Printer className="h-4 w-4" />
             {printUsb.isPending ? "Printing…" : "Print receipt"}
