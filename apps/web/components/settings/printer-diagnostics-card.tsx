@@ -33,7 +33,7 @@ function printBrowserTestReceipt(paperWidthMm: number = 80) {
       <div class="c b" style="font-size: 15px; letter-spacing: 0.5px;">HANVA TECHNOLOGIES</div>
       <div class="c" style="font-size: 11px;">CASHIER COUNTER TEST BILL</div>
       <hr>
-      <div class="c" style="font-size: 11px;">Thermal Printer: TVS RP3160 GOLD (USB)</div>
+      <div class="c" style="font-size: 11px;">ESC/POS Thermal Receipt Printer</div>
       <div class="c" style="font-size: 11px;">Paper Width: ${paperWidthMm} mm</div>
       <div class="c" style="font-size: 11px;">Time: ${new Date().toLocaleString()}</div>
       <hr>
@@ -146,7 +146,7 @@ export function PrinterDiagnosticsCard() {
           </div>
           {branch?.printerConnection === "USB" && (
             <p className="text-xs text-muted-foreground">
-              Counter bills route directly through your local cashier terminal to your USB thermal printer (e.g. TVS RP3160 Gold). No server IP address required.
+              Counter bills route directly through your local cashier terminal to your USB thermal printer. No server IP address required.
             </p>
           )}
           {data.lpDevices.length > 0 && (
@@ -217,7 +217,7 @@ export function PrinterDiagnosticsCard() {
                   USB Direct Till Setup:
                 </p>
                 <p>
-                  For till computers with a direct USB thermal printer (e.g. TVS RP3160 Gold).
+                  For cashier till computers connected directly to a USB thermal receipt printer.
                 </p>
               </div>
             )}
@@ -291,7 +291,7 @@ export function PrinterDiagnosticsCard() {
                   disabled={updateBranch.isPending}
                   onClick={() => save({ printerPaperWidthMm: mm, printerColumns: null })}
                 >
-                  {mm} mm {mm === 80 ? "(TVS RP3160 Gold standard)" : ""}
+                  {mm} mm {mm === 80 ? "(Standard 3-inch roll)" : "(Compact 2-inch roll)"}
                 </Button>
               ))}
             </div>
