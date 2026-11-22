@@ -2,31 +2,30 @@
 title Hanva POS - Local Print Bridge
 color 0A
 
-echo ===================================================
+echo ========================================================
 echo       HANVA POS - LOCAL PRINT BRIDGE (PETPOOJA STYLE)
-echo ===================================================
+echo ========================================================
 echo.
 
-:: Check if Node is installed
+set NODE_CMD=node
 where node >nul 2>nul
 if %errorlevel% neq 0 (
-    echo [ERROR] Node.js is not installed on this computer!
-    echo Please download and install Node.js (LTS version) from:
-    echo https://nodejs.org
-    echo.
-    pause
-    exit /b
-)
-
-:: Check if node_modules exists, if not install
-if not exist node_modules (
-    echo [INFO] First time setup: Installing socket.io-client...
-    npm install --no-audit --no-fund
+    if not exist "%~dp0node.exe" (
+        echo [INFO] Node.js not detected on this PC.
+        echo [INFO] Downloading lightweight portable engine (approx 30MB, one-time)...
+        powershell -NoProfile -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; Invoke-WebRequest -Uri 'https://nodejs.org/dist/v20.18.0/win-x64/node.exe' -OutFile '%~dp0node.exe'"
+        if not exist "%~dp0node.exe" (
+            echo [ERROR] Failed to download node.exe. Please install Node.js from https://nodejs.org
+            pause
+            exit /b 1
+        )
+    )
+    set NODE_CMD="%~dp0node.exe"
 )
 
 echo [INFO] Starting Hanva Print Bridge in background...
 echo.
-node bridge.js
+%NODE_CMD% "%~dp0bridge.js"
 
 if %errorlevel% neq 0 (
     echo.

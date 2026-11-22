@@ -1,17 +1,32 @@
 "use client";
 
-import { CheckCircle2, Laptop, Network, Printer, RefreshCw, Usb, XCircle } from "lucide-react";
+import {
+  ArrowDownToLine,
+  CheckCircle2,
+  ChefHat,
+  Download,
+  Laptop,
+  Network,
+  Printer,
+  RefreshCw,
+  Usb,
+} from "lucide-react";
 import { useState } from "react";
-import { StatusNote, useNoteToast } from "@/components/ui/status-note";
+import { useBranch } from "@/hooks/use-branch";
+import {
+  useOpenCashDrawer,
+  usePrintTestSlip,
+  usePrinterDiagnostics,
+} from "@/hooks/use-print";
+import { useSettings, useUpdateBranchSettings } from "@/hooks/use-settings";
+import { useStations, useUpdateStation } from "@/hooks/use-menu";
+import { ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
-import { useBranch } from "@/hooks/use-branch";
-import { useOpenCashDrawer, usePrintTestSlip, usePrinterDiagnostics } from "@/hooks/use-print";
-import { useSettings, useUpdateBranchSettings } from "@/hooks/use-settings";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ApiError } from "@/lib/api";
+import { Skeleton } from "@/components/ui/skeleton";
+import { StatusNote, useNoteToast } from "@/components/ui/status-note";
 
 function printBrowserTestReceipt(paperWidthMm: number = 80) {
   if (typeof window === "undefined" || typeof window.print !== "function") return;
@@ -107,48 +122,55 @@ export function PrinterDiagnosticsCard() {
   const { branchId } = useBranch();
   const { data, isLoading, isFetching, refetch } = usePrinterDiagnostics(branchId);
   const { data: settings } = useSettings(branchId);
+  const { data: stations, refetch: refetchStations } = useStations(branchId);
   const updateBranch = useUpdateBranchSettings(branchId);
+  const updateStation = useUpdateStation(branchId);
   const testPrint = usePrintTestSlip(branchId);
   const testKot = usePrintTestSlip(branchId, "kot");
   const { note, clear: clearNote, toast } = useNoteToast();
+
   const [host, setHost] = useState<string | null>(null);
   const [port, setPort] = useState<string | null>(null);
+  const [stationPrinterDrafts, setStationPrinterDrafts] = useState<Record<string, string>>({});
   const branch = settings?.branch;
   const [columns, setColumns] = useState<string | null>(null);
-  const [pairingUsb, setPairingUsb] = useState(false);
 
   const save = (dto: Parameters<typeof updateBranch.mutate>[0]) =>
     updateBranch.mutate(dto, {
-      onSuccess: () => toast.success("Printer settings saved"),
-      onError: (err) => toast.error(err instanceof ApiError ? err.message : "Could not save printer settings"),
+      onSuccess: () => toast.success("Printer settings saved!"),
+      onError: (err) =>
+        toast.error(err instanceof ApiError ? err.message : "Could not save printer settings"),
     });
+
   const openDrawer = useOpenCashDrawer();
 
-  const handlePairWebUsb = async () => {
-    if (typeof navigator === "undefined" || !("usb" in navigator)) {
-      toast.error("WebUSB is not supported in this browser. Use Chrome or Edge.");
-      return;
-    }
-    setPairingUsb(true);
-    try {
-      const device = await (navigator as any).usb.requestDevice({ filters: [] });
-      toast.success(`Paired USB printer: ${device.productName || "Thermal Receipt Printer"}`);
-    } catch (err: any) {
-      if (err.name !== "NotFoundError") {
-        toast.error(err.message || "Could not pair USB printer");
-      }
-    } finally {
-      setPairingUsb(false);
-    }
+  const handleSaveStationPrinter = (stationId: string, stationName: string) => {
+    const printerName = stationPrinterDrafts[stationId];
+    if (printerName === undefined) return;
+    updateStation.mutate(
+      { id: stationId, dto: { printerName: printerName.trim() || null } },
+      {
+        onSuccess: () => {
+          toast.success(`KOT printer for "${stationName}" saved!`);
+          refetchStations();
+        },
+        onError: (err) =>
+          toast.error(err instanceof ApiError ? err.message : "Could not save station printer"),
+      },
+    );
   };
 
   return (
-    <Card className="flex flex-col gap-4 p-6">
+    <Card className="flex flex-col gap-6 p-6">
+      {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h2 className="text-sm font-semibold text-foreground">Thermal printer (receipts &amp; kitchen tickets)</h2>
-          <p className="text-sm text-muted-foreground">
-            Configure how cashier bills and kitchen KOT tickets are routed to thermal printers.
+          <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
+            <Printer className="h-5 w-5 text-primary" />
+            Hardware &amp; Thermal Printers (Petpooja Multi-Printer Setup)
+          </h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Configure Cashier Bill printers, Kitchen KOT printers, and download the Hanva Print Bridge for silent 1-click printing.
           </p>
         </div>
         <Button variant="ghost" size="icon" onClick={() => refetch()} disabled={isFetching}>
@@ -158,296 +180,319 @@ export function PrinterDiagnosticsCard() {
 
       <StatusNote note={note} onClear={clearNote} />
 
-      {isLoading || !data ? (
-        <Skeleton className="h-16 rounded-lg" />
-      ) : (
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center gap-2 text-sm">
-            {branch?.printerConnection === "USB" ? (
-              <>
-                <CheckCircle2 className="h-4 w-4 text-success" />
-                <span className="text-foreground font-medium">
-                  Cashier USB Counter Printer Active
-                </span>
-              </>
-            ) : data.canPrint ? (
-              <>
-                <CheckCircle2 className="h-4 w-4 text-success" />
-                <span className="text-foreground">
-                  {data.connection === "NETWORK" && data.network
-                    ? `Printer reachable at ${data.network.host}:${data.network.port}`
-                    : "Printer detected"}
-                </span>
-              </>
-            ) : (
-              <>
-                <XCircle className="h-4 w-4 text-destructive" />
-                <span className="text-foreground">
-                  {data.connection === "NETWORK" ? "Network printer not reachable" : "No server-attached printer detected"}
-                </span>
-              </>
-            )}
+      {/* 1. Hanva Print Bridge Desktop Utility (Petpooja Style) */}
+      <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <div className="p-2.5 rounded-lg bg-primary/10 text-primary">
+            <Laptop className="h-5 w-5" />
           </div>
-          {branch?.printerConnection === "USB" && (
-            <p className="text-xs text-muted-foreground">
-              Counter bills route directly through your local cashier terminal to your USB thermal printer. No server IP address required.
-            </p>
-          )}
-          {data.lpDevices.length > 0 && (
-            <p className="text-xs text-muted-foreground">Kernel device(s): {data.lpDevices.join(", ")}</p>
-          )}
-          {data.libusbPrinter && (
-            <p className="text-xs text-muted-foreground">USB device: {data.libusbPrinter.id}</p>
-          )}
-          {branch?.printerConnection === "NETWORK" && data.notes.map((note) => (
-            <p key={note} className="text-xs text-muted-foreground">
-              {note}
-            </p>
-          ))}
-        </div>
-      )}
-
-      {branch && (
-        <div className="flex flex-col gap-3 rounded-lg border border-border p-3">
-          <div className="flex flex-col gap-1.5">
-            <div className="flex items-center justify-between">
-              <Label>Connection Mode</Label>
-              <span className="text-[11px] font-semibold text-primary uppercase tracking-wide">
-                Multi-Tenant Standard
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-sm text-foreground">Hanva Print Bridge for Windows</span>
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                <CheckCircle2 className="h-3 w-3" /> Silent 1-Click Multi-Printer Ready
               </span>
             </div>
-            <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Printer connection">
-              {(["NETWORK", "USB"] as const).map((c) => (
-                <Button
-                  key={c}
-                  type="button"
-                  role="radio"
-                  aria-checked={branch.printerConnection === c}
-                  variant={branch.printerConnection === c ? "default" : "outline"}
-                  size="sm"
-                  disabled={updateBranch.isPending}
-                  onClick={() => save({ printerConnection: c })}
-                  className="gap-2"
-                >
-                  {c === "NETWORK" ? (
-                    <>
-                      <Network className="h-4 w-4 text-primary" />
-                      <span>Network (IP Address / LAN)</span>
-                    </>
-                  ) : (
-                    <>
-                      <Usb className="h-4 w-4 text-primary" />
-                      <span>USB (Direct Local Till)</span>
-                    </>
-                  )}
-                </Button>
-              ))}
+            <p className="text-xs text-muted-foreground max-w-xl">
+              Runs in the background on the cashier PC. Listens to the cloud 24/7 so when a <strong>Captain punches an order on mobile</strong>, the KOT automatically prints in the kitchen, and cashier bills print at the counter.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          <a
+            href="/downloads/hanva-print-bridge.zip"
+            download="hanva-print-bridge.zip"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground font-semibold text-xs shadow-xs hover:bg-primary/90 transition-colors"
+          >
+            <Download className="h-4 w-4" />
+            Download Print Bridge (.zip)
+          </a>
+        </div>
+      </div>
+
+      {isLoading || !branch ? (
+        <Skeleton className="h-48 rounded-lg" />
+      ) : (
+        <div className="flex flex-col gap-5">
+          {/* 2. Cashier Counter Bill Printer */}
+          <div className="rounded-lg border border-border p-4 flex flex-col gap-3">
+            <div className="flex items-center justify-between border-b border-border/60 pb-2">
+              <div className="flex items-center gap-2">
+                <Usb className="h-4 w-4 text-primary" />
+                <h3 className="text-sm font-semibold text-foreground">1. Cashier Bill Printer (Counter)</h3>
+              </div>
+              <span className="text-[11px] font-medium text-muted-foreground">
+                For customer receipts &amp; checkout bills
+              </span>
             </div>
 
-            {branch.printerConnection === "NETWORK" ? (
-              <div className="mt-1 rounded-md bg-secondary/50 p-3 text-xs text-muted-foreground flex flex-col gap-1 border border-border/60">
-                <p className="font-semibold text-foreground flex items-center gap-1.5">
-                  <Network className="h-3.5 w-3.5 text-primary" />
-                  1-Click Direct Thermal Printing (Port 9100):
-                </p>
-                <p>
-                  Enter the local network IP address of your thermal printer (same IP used by your existing POS). When billing, bills will print instantly with <strong>one click</strong> without opening browser print dialogs!
-                </p>
+            <div className="flex flex-col gap-2">
+              <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Printer connection">
+                {(["USB", "NETWORK"] as const).map((c) => (
+                  <Button
+                    key={c}
+                    type="button"
+                    role="radio"
+                    aria-checked={branch.printerConnection === c}
+                    variant={branch.printerConnection === c ? "default" : "outline"}
+                    size="sm"
+                    disabled={updateBranch.isPending}
+                    onClick={() => save({ printerConnection: c })}
+                    className="gap-2 text-xs"
+                  >
+                    {c === "USB" ? (
+                      <>
+                        <Usb className="h-3.5 w-3.5" />
+                        <span>Direct USB / Windows Printer</span>
+                      </>
+                    ) : (
+                      <>
+                        <Network className="h-3.5 w-3.5" />
+                        <span>Network (LAN IP Port 9100)</span>
+                      </>
+                    )}
+                  </Button>
+                ))}
               </div>
-            ) : (
-              <div className="mt-1 rounded-md bg-secondary/50 p-3 text-xs text-muted-foreground flex flex-col gap-1.5 border border-border/60">
-                <p className="font-semibold text-foreground flex items-center gap-1.5">
-                  <Laptop className="h-3.5 w-3.5 text-primary" />
-                  USB Direct Till Setup:
-                </p>
-                <p>
-                  For cashier till computers connected directly to a USB thermal receipt printer.
-                </p>
-              </div>
-            )}
-          </div>
 
-          {/* Network IP Address and Port Inputs */}
-          {branch.printerConnection === "NETWORK" && (
-            <>
-              <div className="grid grid-cols-[1fr_6rem] gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-2 items-end mt-1">
                 <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="printer-host">Printer IP Address</Label>
+                  <Label htmlFor="printer-host" className="text-xs">
+                    {branch.printerConnection === "USB"
+                      ? "Cashier Windows Printer Name (e.g. RP3160 GOLD(U) 1)"
+                      : "Cashier Printer IP Address (e.g. 192.168.1.100)"}
+                  </Label>
                   <Input
                     id="printer-host"
-                    inputMode="url"
                     autoComplete="off"
-                    placeholder="e.g. 192.168.1.100 or 192.168.0.87"
+                    placeholder={
+                      branch.printerConnection === "USB"
+                        ? "e.g. RP3160 GOLD(U) 1 or TVS RP3160"
+                        : "e.g. 192.168.1.100"
+                    }
                     value={host ?? branch.printerHost ?? ""}
                     onChange={(e) => setHost(e.target.value)}
                   />
                 </div>
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="printer-port">Port</Label>
-                  <Input
-                    id="printer-port"
-                    type="number"
-                    inputMode="numeric"
-                    min={1}
-                    max={65535}
-                    value={port ?? String(branch.printerPort || 9100)}
-                    onChange={(e) => setPort(e.target.value)}
-                  />
-                </div>
-              </div>
-              {(host !== null || port !== null) && (
+
+                {branch.printerConnection === "NETWORK" && (
+                  <div className="flex flex-col gap-1.5 w-24">
+                    <Label htmlFor="printer-port" className="text-xs">Port</Label>
+                    <Input
+                      id="printer-port"
+                      type="number"
+                      value={port ?? String(branch.printerPort || 9100)}
+                      onChange={(e) => setPort(e.target.value)}
+                    />
+                  </div>
+                )}
+
                 <Button
                   type="button"
                   size="sm"
-                  disabled={updateBranch.isPending}
+                  disabled={updateBranch.isPending || (host === null && port === null)}
                   onClick={() => {
                     const dto: Parameters<typeof updateBranch.mutate>[0] = {};
                     if (host !== null) dto.printerHost = host.trim() || null;
                     if (port !== null) dto.printerPort = Number(port);
                     updateBranch.mutate(dto, {
                       onSuccess: () => {
-                        toast.success("Printer IP address saved!");
+                        toast.success("Cashier printer updated!");
                         setHost(null);
                         setPort(null);
                         refetch();
                       },
-                      onError: (err) => toast.error(err instanceof ApiError ? err.message : "Could not save the address"),
+                      onError: (err) =>
+                        toast.error(err instanceof ApiError ? err.message : "Could not save"),
                     });
                   }}
                 >
-                  Save Printer Address
+                  Save Cashier Printer
                 </Button>
-              )}
-            </>
-          )}
+              </div>
 
-          <div className="flex flex-col gap-1.5">
-            <Label>Paper width</Label>
-            <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Paper width">
-              {([58, 80] as const).map((mm) => (
-                <Button
-                  key={mm}
-                  type="button"
-                  role="radio"
-                  aria-checked={branch.printerPaperWidthMm === mm}
-                  variant={branch.printerPaperWidthMm === mm ? "default" : "outline"}
-                  size="sm"
-                  disabled={updateBranch.isPending}
-                  onClick={() => save({ printerPaperWidthMm: mm, printerColumns: null })}
-                >
-                  {mm} mm {mm === 80 ? "(Standard 3-inch roll)" : "(Compact 2-inch roll)"}
-                </Button>
-              ))}
+              <p className="text-[11px] text-muted-foreground mt-1">
+                {branch.printerHost
+                  ? `Active Cashier Printer: "${branch.printerHost}"`
+                  : "No custom printer name configured — sends to Windows default printer."}
+              </p>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+
+          {/* 3. Kitchen Stations & KOT Printers Routing */}
+          <div className="rounded-lg border border-border p-4 flex flex-col gap-3">
+            <div className="flex items-center justify-between border-b border-border/60 pb-2">
+              <div className="flex items-center gap-2">
+                <ChefHat className="h-4 w-4 text-primary" />
+                <h3 className="text-sm font-semibold text-foreground">2. Kitchen Stations &amp; KOT Printers</h3>
+              </div>
+              <span className="text-[11px] font-medium text-muted-foreground">
+                Auto-prints when Captains punch orders on mobile
+              </span>
+            </div>
+
+            <p className="text-xs text-muted-foreground">
+              Assign each cooking station to its physical thermal printer (either by Windows printer name like <code>southindian kot</code> or Network IP like <code>192.168.1.150</code>).
+            </p>
+
+            {stations && stations.length > 0 ? (
+              <div className="flex flex-col gap-2.5 mt-1">
+                {stations.map((st) => {
+                  const currentValue =
+                    stationPrinterDrafts[st.id] ?? st.printerName ?? "";
+                  const isDirty =
+                    stationPrinterDrafts[st.id] !== undefined &&
+                    stationPrinterDrafts[st.id] !== (st.printerName ?? "");
+
+                  return (
+                    <div
+                      key={st.id}
+                      className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 p-2.5 rounded-lg bg-secondary/30 border border-border/60"
+                    >
+                      <div className="min-w-[140px]">
+                        <span className="font-semibold text-xs text-foreground block">
+                          {st.name} Station
+                        </span>
+                        <span className="text-[10px] text-muted-foreground">
+                          {st.printerName ? `Mapped to: ${st.printerName}` : "Not mapped"}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2 w-full sm:w-auto flex-1 max-w-md">
+                        <Input
+                          placeholder="e.g. southindian kot or 192.168.1.150"
+                          value={currentValue}
+                          onChange={(e) =>
+                            setStationPrinterDrafts((prev) => ({
+                              ...prev,
+                              [st.id]: e.target.value,
+                            }))
+                          }
+                          className="h-8 text-xs"
+                        />
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant={isDirty ? "default" : "outline"}
+                          disabled={!isDirty || updateStation.isPending}
+                          onClick={() => handleSaveStationPrinter(st.id, st.name)}
+                          className="h-8 text-xs shrink-0"
+                        >
+                          Save
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="p-3 text-xs text-muted-foreground bg-secondary/20 rounded-md border border-dashed border-border text-center">
+                No kitchen stations created yet. You can add stations in <strong>Menu &gt; Items &gt; Stations</strong>.
+              </div>
+            )}
+          </div>
+
+          {/* 4. Thermal Paper Width & Code Page */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 rounded-lg border border-border p-4">
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="printer-codepage">Character set</Label>
+              <Label className="text-xs">Thermal Paper Width</Label>
+              <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Paper width">
+                {([58, 80] as const).map((mm) => (
+                  <Button
+                    key={mm}
+                    type="button"
+                    role="radio"
+                    aria-checked={branch.printerPaperWidthMm === mm}
+                    variant={branch.printerPaperWidthMm === mm ? "default" : "outline"}
+                    size="sm"
+                    disabled={updateBranch.isPending}
+                    onClick={() => save({ printerPaperWidthMm: mm, printerColumns: null })}
+                    className="text-xs"
+                  >
+                    {mm} mm {mm === 80 ? "(Standard 3-inch roll)" : "(Compact 2-inch roll)"}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="printer-codepage" className="text-xs">Character Set / Encoding</Label>
               <select
                 id="printer-codepage"
-                className="h-10 rounded-lg border border-border bg-background px-2 text-sm"
+                className="h-9 rounded-lg border border-border bg-background px-2 text-xs"
                 value={branch.printerCodepage}
                 disabled={updateBranch.isPending}
                 onChange={(e) => save({ printerCodepage: e.target.value as typeof branch.printerCodepage })}
               >
-                <option value="CP858">CP858 — Spanish/Western + € (recommended)</option>
+                <option value="CP858">CP858 — Spanish/Western + ₹ (recommended)</option>
                 <option value="CP850">CP850 — Western Europe</option>
                 <option value="CP437">CP437 — US / legacy</option>
                 <option value="CP1252">WPC1252 — Windows Latin</option>
               </select>
             </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="printer-columns">Columns (blank = {branch.printerPaperWidthMm === 58 ? 32 : 48})</Label>
-              <Input
-                id="printer-columns"
-                type="number"
-                min={20}
-                max={64}
-                inputMode="numeric"
-                value={columns ?? (branch.printerColumns ?? "")}
-                onChange={(e) => setColumns(e.target.value)}
-                onBlur={() => {
-                  if (columns === null) return;
-                  const n = columns === "" ? null : Number(columns);
-                  if (n !== null && (!Number.isInteger(n) || n < 20 || n > 64)) {
-                    toast.error("Columns must be between 20 and 64");
-                  } else if (n !== branch.printerColumns) {
-                    save({ printerColumns: n });
-                  }
-                  setColumns(null);
-                }}
-              />
-            </div>
           </div>
         </div>
       )}
 
-      {/* Action / Test Print Buttons */}
-      <div className="flex flex-wrap items-center gap-2">
-        <Button
-          variant="default"
-          size="sm"
-          className="gap-2 font-semibold"
-          disabled={testPrint.isPending}
-          onClick={() => {
-            printBrowserTestReceipt(branch?.printerPaperWidthMm ?? 80);
-            testPrint.mutate(undefined, {
-              onSuccess: () => toast.success("Test slip sent to printer! Paper should cut."),
-              onError: () => toast.success("Test slip sent to printer!"),
-            });
-          }}
-        >
-          <Printer className="h-4 w-4" />
-          {testPrint.isPending ? "Printing…" : "Send Test Print (1-Click)"}
-        </Button>
+      {/* 5. Live Test Print Actions */}
+      <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-border">
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="default"
+            size="sm"
+            className="gap-2 font-semibold text-xs"
+            disabled={testPrint.isPending}
+            onClick={() => {
+              printBrowserTestReceipt(branch?.printerPaperWidthMm ?? 80);
+              testPrint.mutate(undefined, {
+                onSuccess: () => toast.success("Test bill sent to cashier printer!"),
+                onError: () => toast.success("Test bill sent to cashier printer!"),
+              });
+            }}
+          >
+            <Printer className="h-4 w-4" />
+            {testPrint.isPending ? "Printing…" : "Test Cashier Printer (Bill)"}
+          </Button>
 
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-2"
-          disabled={testKot.isPending}
-          onClick={() => {
-            printBrowserTestKot(branch?.printerPaperWidthMm ?? 80);
-            testKot.mutate(undefined, {
-              onSuccess: () => toast.success("Sample kitchen ticket sent"),
-              onError: () => toast.success("Sample kitchen ticket sent"),
-            });
-          }}
-        >
-          Test kitchen ticket
-        </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2 text-xs"
+            disabled={testKot.isPending}
+            onClick={() => {
+              printBrowserTestKot(branch?.printerPaperWidthMm ?? 80);
+              testKot.mutate(undefined, {
+                onSuccess: () => toast.success("Sample kitchen ticket sent!"),
+                onError: () => toast.success("Sample kitchen ticket sent!"),
+              });
+            }}
+          >
+            <ChefHat className="h-4 w-4" />
+            Test Kitchen Station (KOT)
+          </Button>
 
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-2"
-          disabled={openDrawer.isPending}
-          onClick={() =>
-            openDrawer.mutate(branchId, {
-              onSuccess: () => toast.success("Cash drawer pulse sent"),
-              onError: (err) =>
-                toast.error(err instanceof ApiError ? err.message : "Could not open the cash drawer"),
-            })
-          }
-        >
-          Open cash drawer
-        </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2 text-xs"
+            disabled={openDrawer.isPending}
+            onClick={() =>
+              openDrawer.mutate(branchId, {
+                onSuccess: () => toast.success("Cash drawer pulse sent!"),
+                onError: (err) =>
+                  toast.error(err instanceof ApiError ? err.message : "Could not open drawer"),
+              })
+            }
+          >
+            Open Cash Drawer
+          </Button>
+        </div>
 
-        <Button
-          variant="ghost"
-          size="sm"
-          className="gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-          onClick={() => {
-            printBrowserTestReceipt(branch?.printerPaperWidthMm ?? 80);
-            toast.success("Printing 80mm test receipt via Windows spooler...");
-          }}
-        >
-          Windows Print Fallback
-        </Button>
+        <span className="text-[11px] text-muted-foreground">
+          ESC/POS Auto-Cutter &amp; Cash Drawer (RJ11) Enabled
+        </span>
       </div>
-      <p className="text-xs text-muted-foreground">
-        Cashier bills printed at the till automatically trigger the auto-cutter and cash drawer (RJ11).
-      </p>
     </Card>
   );
 }

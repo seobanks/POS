@@ -17,6 +17,7 @@ export interface MenuCategory {
 export interface KitchenStation {
   id: string;
   name: string;
+  printerName?: string | null;
 }
 
 export interface Modifier {
@@ -91,6 +92,33 @@ export function useStations(branchId: string | null) {
     queryKey: ["menu", "stations", branchId],
     queryFn: () => api.get<KitchenStation[]>(`/menu/stations?branchId=${branchId}`),
     enabled: !!branchId,
+  });
+}
+
+export function useCreateStation(branchId: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (dto: { name: string; printerName?: string }) =>
+      api.post(`/menu/stations?branchId=${branchId}`, dto),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["menu", "stations", branchId] }),
+  });
+}
+
+export function useUpdateStation(branchId: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, dto }: { id: string; dto: { name?: string; printerName?: string | null } }) =>
+      api.patch(`/menu/stations/${id}?branchId=${branchId}`, dto),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["menu", "stations", branchId] }),
+  });
+}
+
+export function useDeleteStation(branchId: string | null) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      api.delete(`/menu/stations/${id}?branchId=${branchId}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["menu", "stations", branchId] }),
   });
 }
 

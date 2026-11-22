@@ -83,12 +83,28 @@ export class MenuService {
   // --- Kitchen stations -----------------------------------------------------
 
   listStations(branchId: string) {
-    return this.prisma.kitchenStation.findMany({ where: { branchId } });
+    return this.prisma.kitchenStation.findMany({ where: { branchId }, orderBy: { name: 'asc' } });
   }
 
   createStation(branchId: string, name: string, printerName?: string) {
     return this.prisma.kitchenStation.create({
-      data: { branchId, name, printerName },
+      data: { branchId, name, printerName: printerName || null },
+    });
+  }
+
+  updateStation(branchId: string, id: string, name?: string, printerName?: string | null) {
+    return this.prisma.kitchenStation.update({
+      where: { id, branchId },
+      data: {
+        ...(name !== undefined ? { name } : {}),
+        ...(printerName !== undefined ? { printerName } : {}),
+      },
+    });
+  }
+
+  deleteStation(branchId: string, id: string) {
+    return this.prisma.kitchenStation.delete({
+      where: { id, branchId },
     });
   }
 
