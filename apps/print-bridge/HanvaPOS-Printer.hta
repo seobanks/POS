@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<title>Hanva POS - Hardware & Thermal Printer Manager</title>
+<hta:application 
+  id="HanvaPrinterApp"
+  applicationname="Hanva POS Printer Manager"
+  border="thin"
+  borderstyle="normal"
+  caption="yes"
+  maximizebutton="no"
+  minimizebutton="yes"
+  showintaskbar="yes"
+  singleinstance="yes"
+  sysmenu="yes"
+  windowstate="normal"
+  scroll="yes"
+/>
+
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: #0f172a;
+    color: #e2e8f0;
+    font-size: 13px;
+    padding: 16px;
+    overflow-x: hidden;
+  }
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #334155;
+    margin-bottom: 14px;
+  }
+  .title-group h1 {
+    font-size: 18px;
+    font-weight: 700;
+    color: #f97316;
+    letter-spacing: -0.5px;
+  }
+  .title-group p {
+    font-size: 11px;
+    color: #94a3b8;
+  }
+  .status-badge {
+    padding: 4px 10px;
+    border-radius: 9999px;
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    background: #1e293b;
+    border: 1px solid #475569;
+    color: #cbd5e1;
+  }
+  .status-badge.active {
+    background: #064e3b;
+    border-color: #10b981;
+    color: #34d399;
+  }
+  .card {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    padding: 14px;
+    margin-bottom: 12px;
+  }
+  .card-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: #f1f5f9;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .form-row {
+    margin-bottom: 10px;
+  }
+  label {
+    display: block;
+    font-size: 11px;
+    font-weight: 500;
+    color: #94a3b8;
+    margin-bottom: 4px;
+  }
+  input[type="text"], input[type="password"], select {
+    width: 100%;
+    padding: 7px 10px;
+    background: #0f172a;
+    border: 1px solid #475569;
+    border-radius: 6px;
+    color: #f8fafc;
+    font-size: 12px;
+    outline: none;
+  }
+  input[type="text"]:focus, input[type="password"]:focus, select:focus {
+    border-color: #f97316;
+  }
+  .btn-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+  }
+  button {
+    cursor: pointer;
+    border: none;
+    border-radius: 6px;
+    padding: 7px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    transition: all 0.2s;
+  }
+  .btn-primary {
+    background: #f97316;
+    color: #ffffff;
+  }
+  .btn-primary:hover { background: #ea580c; }
+  .btn-secondary {
+    background: #334155;
+    color: #f1f5f9;
+  }
+  .btn-secondary:hover { background: #475569; }
+  .btn-success {
+    background: #059669;
+    color: #ffffff;
+  }
+  .btn-success:hover { background: #047857; }
+  .btn-danger {
+    background: #dc2626;
+    color: #ffffff;
+  }
+  .btn-danger:hover { background: #b91c1c; }
+  .log-box {
+    background: #020617;
+    border: 1px solid #1e293b;
+    border-radius: 6px;
+    padding: 10px;
+    height: 140px;
+    overflow-y: scroll;
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 11px;
+    color: #38bdf8;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+</style>
+
+<script language="javascript">
+  var shell = null;
+  var fso = null;
+  var appDir = "";
+  var config = {
+    cloudUrl: "https://api.hanva.in",
+    username: "",
+    password: "",
+    billPrinter: "",
+    kotPrinter: ""
+  };
+
+  try {
+    shell = new ActiveXObject("WScript.Shell");
+    fso = new ActiveXObject("Scripting.FileSystemObject");
+  } catch(e) {
+    alert("ActiveX is required to run Hanva POS Printer Manager.\n" + e.message);
+  }
+
+  function init() {
+    window.resizeTo(740, 760);
+    window.moveTo((screen.width - 740) / 2, (screen.height - 760) / 2);
+
+    try {
+      var fullPath = unescape(window.location.pathname);
+      if (fullPath.charAt(0) === '/' || fullPath.charAt(0) === '\\') {
+        fullPath = fullPath.substring(1);
+      }
+      appDir = fso.GetParentFolderName(fullPath);
+    } catch(e) {
+      log("Error resolving folder: " + e.message);
+    }
+
+    log("Hanva POS Printer Manager loaded.");
+    log("Working Directory: " + appDir);
+
+    loadConfig();
+    loadPrinters();
+    checkServiceStatus();
+  }
+
+  function log(msg) {
+    var box = document.getElementById("logBox");
+    if (!box) return;
+    var d = new Date();
+    var time = d.toLocaleTimeString ? d.toLocaleTimeString() : d.toTimeString().substring(0, 8);
+    box.innerHTML += "[" + time + "] " + msg + "\n";
+    box.scrollTop = box.scrollHeight;
+  }
+
+  function loadConfig() {
+    try {
+      var cfgPath = appDir + "\\config.json";
+      if (fso.FileExists(cfgPath)) {
+        var file = fso.OpenTextFile(cfgPath, 1, false);
+        var txt = file.ReadAll();
+        file.Close();
+        var parsed = eval("(" + txt + ")");
+        if (parsed) {
+          config = parsed;
+          log("Loaded existing configuration from config.json");
+        }
+      }
+    } catch(e) {
+      log("Note: config.json not yet created or parsed: " + e.message);
+    }
+
+    if (document.getElementById("cloudUrl")) document.getElementById("cloudUrl").value = config.cloudUrl || "https://api.hanva.in";
+    if (document.getElementById("username")) document.getElementById("username").value = config.username || "";
+    if (document.getElementById("password")) document.getElementById("password").value = config.password || "";
+    if (document.getElementById("billPrinter")) document.getElementById("billPrinter").value = config.billPrinter || "";
+    if (document.getElementById("kotPrinter")) document.getElementById("kotPrinter").value = config.kotPrinter || "";
+  }
+
+  function saveConfigUI() {
+    try {
+      config.cloudUrl = document.getElementById("cloudUrl").value;
+      config.username = document.getElementById("username").value;
+      config.password = document.getElementById("password").value;
+      config.billPrinter = document.getElementById("billPrinter").value;
+      config.kotPrinter = document.getElementById("kotPrinter").value;
+
+      var cfgPath = appDir + "\\config.json";
+      var file = fso.CreateTextFile(cfgPath, true);
+      // format json
+      var jsonStr = "{\n" +
+        '  "cloudUrl": "' + escapeJson(config.cloudUrl) + '",\n' +
+        '  "username": "' + escapeJson(config.username) + '",\n' +
+        '  "password": "' + escapeJson(config.password) + '",\n' +
+        '  "billPrinter": "' + escapeJson(config.billPrinter) + '",\n' +
+        '  "kotPrinter": "' + escapeJson(config.kotPrinter) + '"\n' +
+        "}";
+      file.Write(jsonStr);
+      file.Close();
+      log("✓ Configuration saved to config.json");
+      alert("Settings saved successfully!");
+    } catch(e) {
+      log("Error saving config: " + e.message);
+      alert("Could not save settings: " + e.message);
+    }
+  }
+
+  function escapeJson(str) {
+    if (!str) return "";
+    return str.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  }
+
+  function loadPrinters() {
+    log("Scanning Windows Printers (USB & LAN)...");
+    try {
+      var nodeExe = appDir + "\\node.exe";
+      if (!fso.FileExists(nodeExe)) {
+        log("⚠️ node.exe not found in " + appDir);
+        return;
+      }
+
+      var cmd = '"' + nodeExe + '" "' + appDir + '\\bridge.js" --printers';
+      var exec = shell.Exec('%COMSPEC% /c ""' + nodeExe + '" "' + appDir + '\\bridge.js" --printers"');
+      var out = "";
+      while (exec.Status === 0) {
+        // wait
+      }
+      out = exec.StdOut.ReadAll();
+      if (out) {
+        var list = eval("(" + out + ")");
+        if (list && list.length > 0) {
+          log("✓ Detected " + list.length + " installed Windows printer(s).");
+          populateSelect("billSelect", list, config.billPrinter);
+          populateSelect("kotSelect", list, config.kotPrinter);
+        } else {
+          log("No printers found via PowerShell query.");
+        }
+      }
+    } catch(e) {
+      log("Scanner notice: " + e.message);
+    }
+  }
+
+  function populateSelect(selectId, printers, selectedVal) {
+    var sel = document.getElementById(selectId);
+    if (!sel) return;
+    sel.innerHTML = '<option value="">-- Choose Detected Windows Printer --</option>';
+    for (var i = 0; i < printers.length; i++) {
+      var p = printers[i];
+      var name = p.name || p;
+      var opt = document.createElement("option");
+      opt.value = name;
+      opt.text = name + (p.port ? " (" + p.port + ")" : "");
+      if (selectedVal && selectedVal.toLowerCase() === name.toLowerCase()) {
+        opt.selected = true;
+      }
+      sel.appendChild(opt);
+    }
+  }
+
+  function onSelectPrinter(selectId, targetInputId) {
+    var sel = document.getElementById(selectId);
+    var input = document.getElementById(targetInputId);
+    if (sel && input && sel.value) {
+      input.value = sel.value;
+      log("Selected printer for " + targetInputId + ": " + sel.value);
+    }
+  }
+
+  function testCashierPrint() {
+    saveConfigUI_silent();
+    log("Sending test slip to Cashier Bill Printer [" + config.billPrinter + "]...");
+    try {
+      var nodeExe = appDir + "\\node.exe";
+      var exec = shell.Exec('%COMSPEC% /c ""' + nodeExe + '" "' + appDir + '\\bridge.js" --test-cashier"');
+      var out = exec.StdOut.ReadAll();
+      log(out);
+    } catch(e) {
+      log("Test print error: " + e.message);
+    }
+  }
+
+  function testKotPrint() {
+    saveConfigUI_silent();
+    log("Sending test slip to Kitchen KOT Printer [" + config.kotPrinter + "]...");
+    try {
+      var nodeExe = appDir + "\\node.exe";
+      var exec = shell.Exec('%COMSPEC% /c ""' + nodeExe + '" "' + appDir + '\\bridge.js" --test-kot"');
+      var out = exec.StdOut.ReadAll();
+      log(out);
+    } catch(e) {
+      log("Test print error: " + e.message);
+    }
+  }
+
+  function kickCashDrawer() {
+    saveConfigUI_silent();
+    log("Sending cash drawer pulse to [" + config.billPrinter + "]...");
+    try {
+      var nodeExe = appDir + "\\node.exe";
+      var exec = shell.Exec('%COMSPEC% /c ""' + nodeExe + '" "' + appDir + '\\bridge.js" --drawer"');
+      var out = exec.StdOut.ReadAll();
+      log(out);
+    } catch(e) {
+      log("Drawer kick error: " + e.message);
+    }
+  }
+
+  function startSilentService() {
+    saveConfigUI_silent();
+    try {
+      var nodeExe = appDir + "\\node.exe";
+      shell.CurrentDirectory = appDir;
+      // 0 = hidden background process
+      shell.Run('"' + nodeExe + '" "' + appDir + '\\bridge.js"', 0, false);
+      log("🟢 [ACTIVE] Silent Print Service started in background!");
+      log("The service is listening for orders from Cashier & Captains.");
+      updateStatusBadge(true);
+      alert("Hanva Print Bridge is now running in the background!\n\nBills & KOTs will print automatically with 0 clicks.");
+    } catch(e) {
+      log("Service launch error: " + e.message);
+      alert("Could not start service: " + e.message);
+    }
+  }
+
+  function stopService() {
+    try {
+      shell.Run('taskkill /F /IM node.exe', 0, true);
+      log("⏹️ Print Bridge service stopped.");
+      updateStatusBadge(false);
+      alert("Hanva Print Bridge stopped.");
+    } catch(e) {
+      log("Stop error: " + e.message);
+    }
+  }
+
+  function checkServiceStatus() {
+    try {
+      var exec = shell.Exec('tasklist /FI "IMAGENAME eq node.exe"');
+      var out = exec.StdOut.ReadAll();
+      if (out && out.indexOf("node.exe") !== -1) {
+        updateStatusBadge(true);
+      } else {
+        updateStatusBadge(false);
+      }
+    } catch(e) {
+      updateStatusBadge(false);
+    }
+  }
+
+  function updateStatusBadge(active) {
+    var b = document.getElementById("statusBadge");
+    if (!b) return;
+    if (active) {
+      b.className = "status-badge active";
+      b.innerHTML = "● Online (Silent Background)";
+    } else {
+      b.className = "status-badge";
+      b.innerHTML = "○ Idle / Stopped";
+    }
+  }
+
+  function addToStartup() {
+    try {
+      var startupDir = shell.SpecialFolders("Startup");
+      var lnk = shell.CreateShortcut(startupDir + "\\HanvaPOS-Printer.lnk");
+      lnk.TargetPath = appDir + "\\silent-start.vbs";
+      lnk.WorkingDirectory = appDir;
+      lnk.Description = "Hanva POS Silent Print Bridge";
+      lnk.Save();
+      log("✓ Added to Windows Startup: " + startupDir);
+      alert("Hanva POS Print Bridge will now start automatically whenever this PC turns on!");
+    } catch(e) {
+      log("Startup shortcut error: " + e.message);
+      alert("Failed to add to Startup: " + e.message);
+    }
+  }
+
+  function createDesktopShortcut() {
+    try {
+      var deskDir = shell.SpecialFolders("Desktop");
+      var lnk = shell.CreateShortcut(deskDir + "\\Hanva POS Printer Manager.lnk");
+      lnk.TargetPath = appDir + "\\HanvaPOS-Printer.hta";
+      lnk.WorkingDirectory = appDir;
+      lnk.Description = "Hanva POS Hardware & Printer Manager";
+      lnk.Save();
+      log("✓ Created Desktop Shortcut on " + deskDir);
+      alert("Desktop shortcut created successfully!");
+    } catch(e) {
+      log("Desktop shortcut error: " + e.message);
+      alert("Failed to create Desktop shortcut: " + e.message);
+    }
+  }
+
+  function saveConfigUI_silent() {
+    config.cloudUrl = document.getElementById("cloudUrl").value;
+    config.username = document.getElementById("username").value;
+    config.password = document.getElementById("password").value;
+    config.billPrinter = document.getElementById("billPrinter").value;
+    config.kotPrinter = document.getElementById("kotPrinter").value;
+
+    try {
+      var cfgPath = appDir + "\\config.json";
+      var file = fso.CreateTextFile(cfgPath, true);
+      var jsonStr = "{\n" +
+        '  "cloudUrl": "' + escapeJson(config.cloudUrl) + '",\n' +
+        '  "username": "' + escapeJson(config.username) + '",\n' +
+        '  "password": "' + escapeJson(config.password) + '",\n' +
+        '  "billPrinter": "' + escapeJson(config.billPrinter) + '",\n' +
+        '  "kotPrinter": "' + escapeJson(config.kotPrinter) + '"\n' +
+        "}";
+      file.Write(jsonStr);
+      file.Close();
+    } catch(e) {}
+  }
+</script>
+</head>
+
+<body onload="init()">
+  <div class="header">
+    <div class="title-group">
+      <h1>HANVA POS &mdash; PRINTER MANAGER</h1>
+      <p>Multi-Tenant 1-Click Silent Thermal Printing Service (Petpooja Style)</p>
+    </div>
+    <div id="statusBadge" class="status-badge">Checking...</div>
+  </div>
+
+  <!-- Cashier Bill Printer Card -->
+  <div class="card">
+    <div class="card-title">
+      <span>🖨️ CASHIER COUNTER BILL PRINTER (USB / Direct Spooler)</span>
+    </div>
+    <div class="form-row">
+      <label>Detected Windows Printer:</label>
+      <select id="billSelect" onchange="onSelectPrinter('billSelect', 'billPrinter')">
+        <option value="">-- Scanning Installed Printers... --</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label>Assigned Printer Name or IP (e.g. RP3160 GOLD(U) 1):</label>
+      <input type="text" id="billPrinter" placeholder="e.g. RP3160 GOLD(U) 1 or 192.168.1.150" />
+    </div>
+    <div class="btn-row">
+      <button class="btn-secondary" onclick="testCashierPrint()">🧪 Test Cashier Bill</button>
+      <button class="btn-secondary" onclick="kickCashDrawer()">💵 Open Cash Drawer</button>
+      <button class="btn-secondary" onclick="loadPrinters()">🔄 Refresh Printers</button>
+    </div>
+  </div>
+
+  <!-- Kitchen KOT Printer Card -->
+  <div class="card">
+    <div class="card-title">
+      <span>👨‍🍳 KITCHEN KOT PRINTER (Captains & Food Station)</span>
+    </div>
+    <div class="form-row">
+      <label>Detected Windows Printer:</label>
+      <select id="kotSelect" onchange="onSelectPrinter('kotSelect', 'kotPrinter')">
+        <option value="">-- Scanning Installed Printers... --</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label>Assigned KOT Printer Name or LAN IP (e.g. southindian kot or 192.168.1.151:9100):</label>
+      <input type="text" id="kotPrinter" placeholder="e.g. southindian kot or 192.168.1.151:9100" />
+    </div>
+    <div class="btn-row">
+      <button class="btn-secondary" onclick="testKotPrint()">🧪 Test Kitchen KOT</button>
+    </div>
+  </div>
+
+  <!-- Cloud POS Credentials -->
+  <div class="card">
+    <div class="card-title">
+      <span>☁️ CLOUD POS GATEWAY CONNECTION</span>
+    </div>
+    <div class="form-row">
+      <label>POS Cloud URL:</label>
+      <input type="text" id="cloudUrl" value="https://api.hanva.in" />
+    </div>
+    <div style="display: flex; gap: 8px;">
+      <div style="flex: 1;" class="form-row">
+        <label>Cashier Username / Email:</label>
+        <input type="text" id="username" placeholder="cashier@restaurant.com" />
+      </div>
+      <div style="flex: 1;" class="form-row">
+        <label>Cashier Password:</label>
+        <input type="password" id="password" placeholder="••••••••" />
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Action Buttons -->
+  <div style="margin-bottom: 12px; display: flex; gap: 8px; flex-wrap: wrap;">
+    <button class="btn-success" onclick="startSilentService()">🚀 Start Silent Print Service</button>
+    <button class="btn-danger" onclick="stopService()">⏹️ Stop Service</button>
+    <button class="btn-primary" onclick="saveConfigUI()">💾 Save Settings</button>
+    <button class="btn-secondary" onclick="addToStartup()">📌 Start on Windows Boot</button>
+    <button class="btn-secondary" onclick="createDesktopShortcut()">🖥️ Desktop Shortcut</button>
+  </div>
+
+  <!-- Live Activity Console -->
+  <label style="margin-bottom: 4px; display: block; color: #94a3b8; font-size: 11px;">Activity & Diagnostics Log:</label>
+  <div id="logBox" class="log-box"></div>
+</body>
+</html>

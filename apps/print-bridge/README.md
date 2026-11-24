@@ -1,7 +1,7 @@
 # Hanva POS — Local Print Bridge 🖨️
 > **Cloud-to-LAN Silent Multi-Printer Service (Petpooja Style)**
 
-This lightweight utility runs in the background on the cashier's computer. It connects to your cloud-hosted Hanva POS (`https://api.hanva.in`) and automatically routes print jobs to multiple printers on your local network or USB:
+This lightweight utility runs in the background on the cashier's Windows computer. It connects to your cloud-hosted Hanva POS (`https://api.hanva.in`) and automatically routes print jobs to multiple printers on your local network or USB:
 * **Cashier Bills** ➔ Sent directly to your Counter Printer (e.g. `RP3160 GOLD(U) 1` via USB).
 * **Kitchen KOTs** ➔ Sent directly to your Kitchen Printer (e.g. `southindian kot` via LAN IP or USB).
 * **Captain Apps** ➔ When any captain takes an order on their phone, the KOT prints **instantly in the kitchen**!
@@ -32,27 +32,20 @@ This lightweight utility runs in the background on the cashier's computer. It co
 
 ---
 
-## 🚀 Step-by-Step Setup (1 Minute)
+## 🚀 Easy 1-Minute Setup (Windows Desktop GUI)
 
-### Step 1: Run the Setup Wizard
-On the cashier Windows PC, double-click **`setup.bat`**.
-
-It will ask you:
-1. Your Hanva POS Cashier login (Email & Password)
-2. Automatically show all detected printers on the PC:
-   ```
-   [1] RP3160 GOLD(U) 1
-   [2] southindian kot
-   ```
-3. Select which one is for **Cashier Bills** (e.g. `1`)
-4. Select which one is for **Kitchen KOTs** (e.g. `2`)
-5. It will send a test slip to both printers and save `config.json` automatically!
+### Option 1 (Recommended): Double-Click `HanvaPOS-Printer.hta`
+1. Double-click **`HanvaPOS-Printer.hta`** (or `Launch-Hanva-Printer.bat`).
+2. A desktop window will open displaying all detected Windows printers.
+3. Select your **Cashier Printer** (`RP3160 GOLD(U) 1`) and **Kitchen KOT Printer** (`southindian kot`).
+4. Click **"Test Cashier Bill"** and **"Test Kitchen KOT"** to verify printing.
+5. Click **"Start Silent Print Service"** & **"Start on Windows Boot"**.
+Done! Everything will now print automatically in the background with zero clicks.
 
 ---
 
-### Step 2: Keep it Running
-Double-click **`start-bridge.bat`**.
-
-Whenever this is running, all bills and KOTs print silently in under 0.1 seconds!
-
-> **Tip (Windows Startup):** Press `Win + R`, type `shell:startup`, and drop a shortcut to `start-bridge.bat` there so it starts automatically whenever the computer turns on.
+### Option 2: Console Setup Wizard
+Double-click **`setup.bat`**:
+1. Enter your Cashier login (Email & Password).
+2. Choose your Cashier and Kitchen printers from the numbered list.
+3. Done! Start the service anytime with **`start-bridge.bat`** or **`silent-start.vbs`**.

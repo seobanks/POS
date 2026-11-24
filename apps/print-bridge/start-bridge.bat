@@ -1,62 +1,61 @@
 @echo off
 setlocal EnableDelayedExpansion
-title Hanva POS - Local Print Bridge
+cd /d "%~dp0"
+title Hanva POS - Thermal Print Bridge
 color 0A
 
 echo ========================================================
-echo       HANVA POS - LOCAL PRINT BRIDGE (PETPOOJA STYLE)
+echo       HANVA POS - THERMAL PRINT BRIDGE (PETPOOJA STYLE)
 echo ========================================================
 echo.
 
-:: Check if user opened the script directly inside a temporary zip folder
-echo %~dp0 | findstr /i "Temp" >nul
+:: 1. Check if user opened directly inside WinRAR or Windows Zip preview
+echo %CD% | findstr /i "Temp" >nul
 if %errorlevel% equ 0 (
     echo.
     echo ========================================================
-    echo  [ATTENTION] YOU OPENED THIS FILE DIRECTLY INSIDE A ZIP!
+    echo  [ATTENTION] YOU ARE RUNNING DIRECTLY INSIDE A ZIP PREVIEW!
     echo ========================================================
-    echo  You must EXTRACT the ZIP folder before running!
-    echo  Right-click "hanva-print-bridge.zip" and choose "Extract All..."
+    echo  You must EXTRACT the ZIP folder first!
+    echo.
+    echo  Step 1: Close this window.
+    echo  Step 2: Right-click "hanva-print-bridge.zip" in Downloads.
+    echo  Step 3: Click "Extract All..." (or WinRAR Extract Here).
+    echo  Step 4: Open the extracted folder and run start-bridge.bat.
     echo ========================================================
     echo.
     pause
     exit /b 1
 )
 
-:: Check if bridge.js exists
+:: 2. Determine node.exe path
+if exist "%~dp0node.exe" (
+    set "NODE_CMD=%~dp0node.exe"
+) else (
+    where node >nul 2>nul
+    if %errorlevel% equ 0 (
+        set "NODE_CMD=node"
+    ) else (
+        echo [ERROR] node.exe was not found in:
+        echo %~dp0
+        echo Please ensure you extracted the complete ZIP folder.
+        pause
+        exit /b 1
+    )
+)
+
+:: 3. Check if bridge.js exists
 if not exist "%~dp0bridge.js" (
-    echo.
     echo [ERROR] bridge.js was not found in:
     echo %~dp0
-    echo Please make sure you extracted all files from the ZIP folder!
-    echo.
+    echo Please ensure all files were extracted properly.
     pause
     exit /b 1
 )
 
-:: Check for node
-set "NODE_CMD=node"
-where node >nul 2>nul
-if %errorlevel% neq 0 (
-    if not exist "%~dp0node.exe" (
-        echo [INFO] Node.js runtime not found on this computer.
-        echo [INFO] Downloading lightweight portable engine (one-time download)...
-        powershell -NoProfile -ExecutionPolicy Bypass -Command "[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; (New-Object Net.WebClient).DownloadFile('https://nodejs.org/dist/v20.18.0/win-x64/node.exe', '%~dp0node.exe')"
-        if not exist "%~dp0node.exe" (
-            echo.
-            echo [ERROR] Could not download portable node.exe automatically.
-            echo Please install Node.js from https://nodejs.org
-            echo.
-            pause
-            exit /b 1
-        )
-    )
-    set "NODE_CMD=%~dp0node.exe"
-)
-
-echo [INFO] Starting Hanva Print Bridge in background...
+echo [INFO] Starting Hanva Print Bridge...
 echo.
-%NODE_CMD% "%~dp0bridge.js"
+"%NODE_CMD%" "%~dp0bridge.js"
 
 echo.
 echo ========================================================

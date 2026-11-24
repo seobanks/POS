@@ -29,3 +29,4 @@ windows/installer/launcher/obj/
 apps/backend/prisma/schema.sql
 apps/backend/prisma/dist/
 out_backend_deploy/
+apps/print-bridge/node.exe

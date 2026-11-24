@@ -597,34 +597,79 @@ async function runSetup() {
   await startBridge(currentConfig);
 }
 
+async function runCashierTest(config) {
+  banner();
+  const target = config.billPrinter || '';
+  log(`🧪 Testing Cashier Bill Printer: [${target || 'Default Windows Printer'}]...`);
+  const billTest = buildSampleEscPosTestSlip('CASHIER BILL TEST', target);
+  let res;
+  if (/^(\d{1,3}\.){3}\d{1,3}/.test(target)) {
+    const [ip, p] = target.split(':');
+    res = await printOverTcp(ip, p ? parseInt(p, 10) : 9100, billTest);
+  } else {
+    res = await printToWindowsSpooler(target, billTest);
+  }
+  if (res && !res.success) {
+    log(`❌ Cashier test failed: ${res.error}`);
+    return false;
+  }
+  log(`✅ Cashier Printer test slip successfully sent! Paper should feed and cut.\n`);
+  return true;
+}
+
+async function runKotTest(config) {
+  banner();
+  const target = config.kotPrinter || config.billPrinter || '';
+  log(`🧪 Testing Kitchen KOT Printer: [${target || 'Default Windows Printer'}]...`);
+  const kotTest = buildSampleEscPosTestSlip('KITCHEN KOT TEST', target);
+  let res;
+  if (/^(\d{1,3}\.){3}\d{1,3}/.test(target)) {
+    const [ip, p] = target.split(':');
+    res = await printOverTcp(ip, p ? parseInt(p, 10) : 9100, kotTest);
+  } else {
+    res = await printToWindowsSpooler(target, kotTest);
+  }
+  if (res && !res.success) {
+    log(`❌ Kitchen KOT test failed: ${res.error}`);
+    return false;
+  }
+  log(`✅ Kitchen KOT test slip successfully sent! Paper should feed and cut.\n`);
+  return true;
+}
+
+async function openCashDrawer(printerName) {
+  banner();
+  const target = printerName || '';
+  log(`💵 Sending pulse to open cash drawer on [${target || 'Default Printer'}]...`);
+  // Standard ESC/POS kick pulse (ESC p 0 25 250)
+  const pulse = Buffer.from([0x1b, 0x70, 0x00, 0x19, 0xfa]);
+  let res;
+  if (/^(\d{1,3}\.){3}\d{1,3}/.test(target)) {
+    const [ip, p] = target.split(':');
+    res = await printOverTcp(ip, p ? parseInt(p, 10) : 9100, pulse);
+  } else {
+    res = await printToWindowsSpooler(target, pulse);
+  }
+  if (res && !res.success) {
+    log(`❌ Cash drawer kick failed: ${res.error}`);
+    return false;
+  }
+  log(`✅ Cash drawer pulse successfully sent! Drawer should open.\n`);
+  return true;
+}
+
 async function runTest(config) {
   banner();
   log('🧪 Running Print Bridge Self-Test on configured printers...\n');
 
   // Test Cashier Printer
   if (config.billPrinter) {
-    log(`➡️ Testing Cashier Bill Printer: [${config.billPrinter}]...`);
-    const billTest = buildSampleEscPosTestSlip('CASHIER BILL TEST', config.billPrinter);
-    if (/^(\d{1,3}\.){3}\d{1,3}/.test(config.billPrinter)) {
-      const [ip, p] = config.billPrinter.split(':');
-      await printOverTcp(ip, p ? parseInt(p, 10) : 9100, billTest);
-    } else {
-      await printToWindowsSpooler(config.billPrinter, billTest);
-    }
-    log(`✓ Cashier Printer test job sent! Paper should print & cut.\n`);
+    await runCashierTest(config);
   }
 
   // Test Kitchen Printer
   if (config.kotPrinter && config.kotPrinter !== config.billPrinter) {
-    log(`➡️ Testing Kitchen KOT Printer: [${config.kotPrinter}]...`);
-    const kotTest = buildSampleEscPosTestSlip('KITCHEN KOT TEST', config.kotPrinter);
-    if (/^(\d{1,3}\.){3}\d{1,3}/.test(config.kotPrinter)) {
-      const [ip, p] = config.kotPrinter.split(':');
-      await printOverTcp(ip, p ? parseInt(p, 10) : 9100, kotTest);
-    } else {
-      await printToWindowsSpooler(config.kotPrinter, kotTest);
-    }
-    log(`✓ Kitchen Printer test job sent! Paper should print & cut.\n`);
+    await runKotTest(config);
   }
 }
 
@@ -703,11 +748,24 @@ process.on('unhandledRejection', (reason) => {
 });
 
 async function main() {
-  if (process.argv.includes('--setup')) {
+  if (process.argv.includes('--printers')) {
+    const list = getInstalledWindowsPrinters();
+    console.log(JSON.stringify(list));
+    process.exit(0);
+  } else if (process.argv.includes('--setup')) {
     await runSetup();
   } else if (process.argv.includes('--test')) {
     const config = loadConfig();
     await runTest(config);
+  } else if (process.argv.includes('--test-cashier')) {
+    const config = loadConfig();
+    await runCashierTest(config);
+  } else if (process.argv.includes('--test-kot')) {
+    const config = loadConfig();
+    await runKotTest(config);
+  } else if (process.argv.includes('--drawer')) {
+    const config = loadConfig();
+    await openCashDrawer(config.billPrinter);
   } else {
     await startBridge();
   }
