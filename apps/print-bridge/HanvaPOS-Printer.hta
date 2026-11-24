@@ -115,7 +115,6 @@
     border-radius: 4px;
     font-size: 11px;
     cursor: pointer;
-    text-decoration: none;
   }
   .printer-pill:hover {
     border-color: #f97316;
@@ -171,37 +170,6 @@
   }
 </style>
 
-<!-- Native Windows VBScript WMI Query for 100% Reliable Printer Detection -->
-<script language="vbscript">
-Function GetWindowsPrintersList()
-    Dim result, wmi, colPrinters, p, first
-    result = ""
-    first = True
-    On Error Resume Next
-    Set wmi = GetObject("winmgmts:{impersonationLevel=impersonate}!\\.\root\cimv2")
-    If Err.Number = 0 Then
-        Set colPrinters = wmi.ExecQuery("Select Name, PortName, Default from Win32_Printer")
-        For Each p In colPrinters
-            If Not first Then result = result & ";;;;"
-            result = result & p.Name & "||||" & p.PortName & "||||" & CStr(p.Default)
-            first = False
-        Next
-    End If
-    If result = "" Then
-        ' Fallback using WScript.Network
-        Dim net, colP, i
-        Set net = CreateObject("WScript.Network")
-        Set colP = net.EnumPrinterConnections
-        For i = 0 To colP.Count - 1 Step 2
-            If Not first Then result = result & ";;;;"
-            result = result & colP.Item(i + 1) & "||||" & colP.Item(i) & "||||False"
-            first = False
-        Next
-    End If
-    GetWindowsPrintersList = result
-End Function
-</script>
-
 <script language="javascript">
   var shell = null;
   var fso = null;
@@ -220,6 +188,11 @@ End Function
     fso = new ActiveXObject("Scripting.FileSystemObject");
   } catch(e) {
     alert("ActiveX initialization error: " + e.message);
+  }
+
+  function trimStr(str) {
+    if (!str) return "";
+    return ("" + str).replace(/^\s+|\s+$/g, "");
   }
 
   function init() {
@@ -279,11 +252,11 @@ End Function
 
   function saveConfigUI(showAlert) {
     try {
-      config.cloudUrl = document.getElementById("cloudUrl").value;
-      config.username = document.getElementById("username").value;
-      config.password = document.getElementById("password").value;
-      config.billPrinter = document.getElementById("billPrinter").value;
-      config.kotPrinter = document.getElementById("kotPrinter").value;
+      config.cloudUrl = trimStr(document.getElementById("cloudUrl").value);
+      config.username = trimStr(document.getElementById("username").value);
+      config.password = trimStr(document.getElementById("password").value);
+      config.billPrinter = trimStr(document.getElementById("billPrinter").value);
+      config.kotPrinter = trimStr(document.getElementById("kotPrinter").value);
 
       var cfgPath = appDir + "\\config.json";
       var file = fso.CreateTextFile(cfgPath, true);
@@ -310,29 +283,78 @@ End Function
 
   function escapeJson(str) {
     if (!str) return "";
-    return str.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    return ("" + str).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
   }
 
   function loadPrinters() {
     log("Scanning Windows Printers (USB & LAN)...");
-    var rawList = "";
+    var list = [];
+
+    // Tier 1: Query Windows Printers using WScript.Network (Fastest native COM)
     try {
-      rawList = GetWindowsPrintersList();
+      var net = new ActiveXObject("WScript.Network");
+      var colP = net.EnumPrinterConnections();
+      var count = 0;
+      try { count = colP.Count(); } catch(_) { try { count = colP.length; } catch(__) {} }
+      for (var i = 0; i < count; i += 2) {
+        var port = colP.Item(i);
+        var name = colP.Item(i + 1);
+        if (name && trimStr(name)) {
+          list.push({
+            name: trimStr(name),
+            port: trimStr(port),
+            isDefault: false
+          });
+        }
+      }
     } catch(e) {
-      log("WMI scanner notice: " + e.message);
+      log("Tier 1 (Network COM) note: " + e.message);
     }
 
-    var list = [];
-    if (rawList) {
-      var entries = rawList.split(";;;;");
-      for (var i = 0; i < entries.length; i++) {
-        if (!entries[i]) continue;
-        var parts = entries[i].split("||||");
-        list.push({
-          name: parts[0],
-          port: parts[1] || "",
-          isDefault: parts[2] === "True"
-        });
+    // Tier 2: Query WMI in JavaScript if Tier 1 returned nothing
+    if (list.length === 0) {
+      try {
+        var locator = new ActiveXObject("WbemScripting.SWbemLocator");
+        var service = locator.ConnectServer(".", "root\\cimv2");
+        var colPrinters = service.ExecQuery("Select Name, PortName, Default from Win32_Printer");
+        var items = new Enumerator(colPrinters);
+        for (; !items.atEnd(); items.moveNext()) {
+          var p = items.item();
+          if (p && p.Name) {
+            list.push({
+              name: trimStr(p.Name),
+              port: trimStr(p.PortName || ""),
+              isDefault: !!p.Default
+            });
+          }
+        }
+      } catch(e) {
+        log("Tier 2 (WMI) note: " + e.message);
+      }
+    }
+
+    // Tier 3: CLI scanner fallback via node.exe bridge.js --printers
+    if (list.length === 0) {
+      try {
+        log("Querying printer list via diagnostic engine...");
+        var cliOut = runCliSync("--printers");
+        if (cliOut) {
+          var parsed = eval("(" + trimStr(cliOut) + ")");
+          if (parsed && parsed.length > 0) {
+            for (var k = 0; k < parsed.length; k++) {
+              var pName = parsed[k].name || parsed[k].Name || parsed[k];
+              if (pName) {
+                list.push({
+                  name: trimStr(pName),
+                  port: trimStr(parsed[k].port || parsed[k].PortName || ""),
+                  isDefault: false
+                });
+              }
+            }
+          }
+        }
+      } catch(e) {
+        log("Tier 3 (Engine scanner) note: " + e.message);
       }
     }
 
@@ -348,7 +370,7 @@ End Function
       renderPills(list);
       autoSuggestPrinters(list);
     } else {
-      log("⚠️ Could not detect printers via WMI. You can still type the printer name or IP directly into the boxes below.");
+      log("⚠️ Automatic list scanning completed. You can type or paste the exact printer name directly into the box below.");
       var bSel = document.getElementById("billSelect");
       if (bSel) bSel.innerHTML = '<option value="">-- Type printer name manually below --</option>';
       var kSel = document.getElementById("kotSelect");
@@ -359,7 +381,7 @@ End Function
   function populateSelect(selectId, printers, selectedVal, targetInputId) {
     var sel = document.getElementById(selectId);
     if (!sel) return;
-    sel.innerHTML = '<option value="">-- Select Detected Printer --</option>';
+    sel.innerHTML = '<option value="">-- Choose Detected Windows Printer --</option>';
     for (var i = 0; i < printers.length; i++) {
       var p = printers[i];
       var opt = document.createElement("option");
@@ -392,8 +414,8 @@ End Function
   function setPrinter(targetInputId, printerName) {
     var input = document.getElementById(targetInputId);
     if (input) {
-      input.value = printerName;
-      log("Set " + targetInputId + " to: " + printerName);
+      input.value = trimStr(printerName);
+      log("Set " + targetInputId + " to: " + input.value);
       saveConfigUI(false);
     }
   }
@@ -402,8 +424,8 @@ End Function
     var sel = document.getElementById(selectId);
     var input = document.getElementById(targetInputId);
     if (sel && input && sel.value) {
-      input.value = sel.value;
-      log("Selected printer for " + targetInputId + ": " + sel.value);
+      input.value = trimStr(sel.value);
+      log("Selected printer for " + targetInputId + ": " + input.value);
       saveConfigUI(false);
     }
   }
@@ -412,25 +434,23 @@ End Function
     var billInput = document.getElementById("billPrinter");
     var kotInput = document.getElementById("kotPrinter");
 
-    // Auto-suggest Cashier Printer if empty
-    if (billInput && !billInput.value) {
+    if (billInput && !trimStr(billInput.value)) {
       for (var i = 0; i < printers.length; i++) {
         var n = printers[i].name.toLowerCase();
         if (n.indexOf("rp3160") !== -1 || n.indexOf("tvs") !== -1 || n.indexOf("pos") !== -1 || n.indexOf("thermal") !== -1 || n.indexOf("receipt") !== -1) {
           billInput.value = printers[i].name;
-          log("Auto-suggested Cashier Bill Printer: " + printers[i].name);
+          log("Auto-selected Cashier Bill Printer: " + printers[i].name);
           break;
         }
       }
     }
 
-    // Auto-suggest Kitchen KOT Printer if empty
-    if (kotInput && !kotInput.value) {
+    if (kotInput && !trimStr(kotInput.value)) {
       for (var j = 0; j < printers.length; j++) {
         var kn = printers[j].name.toLowerCase();
         if (kn.indexOf("kot") !== -1 || kn.indexOf("kitchen") !== -1 || kn.indexOf("southindian") !== -1) {
           kotInput.value = printers[j].name;
-          log("Auto-suggested Kitchen KOT Printer: " + printers[j].name);
+          log("Auto-selected Kitchen KOT Printer: " + printers[j].name);
           break;
         }
       }
@@ -460,17 +480,18 @@ End Function
         fso.DeleteFile(tmpFile, true);
       }
     } catch(e) {
-      output = "Command completed.";
+      output = "Command finished.";
     }
     return output;
   }
 
   function testCashierPrint() {
-    var b = document.getElementById("billPrinter").value;
+    var b = trimStr(document.getElementById("billPrinter").value);
     if (!b) {
       alert("Please select or type your Cashier Bill printer name first (e.g. RP3160 GOLD(U) 1)");
       return;
     }
+    document.getElementById("billPrinter").value = b;
     saveConfigUI(false);
     log("Sending test slip to Cashier Bill Printer [" + b + "]...");
     var res = runCliSync("--test-cashier");
@@ -478,11 +499,12 @@ End Function
   }
 
   function testKotPrint() {
-    var k = document.getElementById("kotPrinter").value;
+    var k = trimStr(document.getElementById("kotPrinter").value);
     if (!k) {
       alert("Please select or type your Kitchen KOT printer name or IP first (e.g. southindian kot or 192.168.1.150)");
       return;
     }
+    document.getElementById("kotPrinter").value = k;
     saveConfigUI(false);
     log("Sending test slip to Kitchen KOT Printer [" + k + "]...");
     var res = runCliSync("--test-kot");
@@ -491,7 +513,8 @@ End Function
 
   function kickCashDrawer() {
     saveConfigUI(false);
-    log("Sending cash drawer pulse to [" + document.getElementById("billPrinter").value + "]...");
+    var b = trimStr(document.getElementById("billPrinter").value);
+    log("Sending cash drawer pulse to [" + (b || "Default Printer") + "]...");
     var res = runCliSync("--drawer");
     log(res);
   }
