@@ -588,8 +588,13 @@ async function runSetup() {
     await runTest(currentConfig);
   }
 
-  console.log('\nStarting print bridge...');
-  await startBridge();
+  console.log('\n======================================================');
+  console.log('✓ SETUP COMPLETE!');
+  console.log('  You can now start the bridge anytime by double-clicking');
+  console.log('  "start-bridge.bat" or keep this window open.');
+  console.log('======================================================\n');
+  console.log('Starting the Print Bridge now in background...\n');
+  await startBridge(currentConfig);
 }
 
 async function runTest(config) {
@@ -623,17 +628,9 @@ async function runTest(config) {
   }
 }
 
-async function startBridge() {
+async function startBridge(passedConfig) {
   banner();
-  const config = loadConfig();
-
-  if (process.argv.includes('--setup')) {
-    return runSetup();
-  }
-
-  if (process.argv.includes('--test')) {
-    return runTest(config);
-  }
+  const config = passedConfig || loadConfig();
 
   if (!config.billPrinter && !config.kotPrinter && process.platform === 'win32') {
     console.log('⚠️ Printers not yet configured in config.json.');
@@ -641,7 +638,7 @@ async function startBridge() {
     return runSetup();
   }
 
-  log(`Cloud Gateway:       ${config.cloudUrl}`);
+  log(`Cloud Gateway:        ${config.cloudUrl}`);
   log(`Cashier Bill Printer: [${config.billPrinter || 'Default'}]`);
   log(`Kitchen KOT Printer:  [${config.kotPrinter || 'Default'}]`);
 
@@ -698,8 +695,24 @@ async function startBridge() {
   }, 10 * 60 * 1000);
 }
 
-if (process.argv.includes('--setup')) {
-  runSetup();
-} else {
-  startBridge();
+process.on('uncaughtException', (err) => {
+  console.error('\n[FATAL EXCEPTION]', err);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('\n[UNHANDLED REJECTION]', reason);
+});
+
+async function main() {
+  if (process.argv.includes('--setup')) {
+    await runSetup();
+  } else if (process.argv.includes('--test')) {
+    const config = loadConfig();
+    await runTest(config);
+  } else {
+    await startBridge();
+  }
 }
+
+main().catch((err) => {
+  console.error('\n[FATAL ERROR]', err);
+});
